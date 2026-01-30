@@ -1,0 +1,2 @@
+# This file ensures the results directory is tracked by git
+# Actual result files are ignored to keep the repository size manageable
