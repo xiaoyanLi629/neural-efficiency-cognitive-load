@@ -45,7 +45,7 @@ from configs import config
 from configs.config import (
     DATA_ROOT, SUBJECTS,
     WM_TASK, WM_NETWORK_ROIS, GLM_PARAMS,
-    get_wm_fmri_path, get_wm_evs_path, setup_logging
+    get_wm_fmri_path, get_wm_evs_path, get_movement_path, setup_logging
 )
 # Use config.config.ACTIVATION_DIR, config.config.BEHAVIORAL_DIR for timestamped paths
 
@@ -160,41 +160,73 @@ def spm_hrf(tr, oversampling=16, time_length=32.0):
     return hrf_downsampled
 
 
-def create_design_matrix(events, n_volumes, tr):
+def _create_dct_basis(n_volumes, tr, high_pass_cutoff):
+    """Create discrete cosine transform basis for high-pass filtering."""
+    frame_times = np.arange(n_volumes) * tr
+    total_duration = n_volumes * tr
+    # Number of DCT basis functions needed
+    n_cosines = int(np.floor(2 * total_duration / high_pass_cutoff)) + 1
+    n_cosines = max(n_cosines, 1)
+
+    dct_basis = {}
+    for k in range(1, n_cosines + 1):
+        dct_basis[f'drift_{k}'] = np.cos(np.pi * k * frame_times / total_duration)
+    return dct_basis
+
+
+def load_motion_regressors(subject, run='LR'):
+    """
+    Load motion parameters from HCP Movement_Regressors.txt.
+
+    Returns DataFrame with 12 motion parameters (6 rigid-body + derivatives),
+    or None if file not found.
+    """
+    # HCP provides Movement_Regressors.txt with 12 columns
+    mov_path = Path(DATA_ROOT) / subject / "MNINonLinear" / "Results" / \
+               f"tfMRI_WM_{run}" / "Movement_Regressors.txt"
+
+    if not mov_path.exists():
+        return None
+
+    try:
+        motion = np.loadtxt(mov_path)
+        col_names = [f'mot_{i}' for i in range(motion.shape[1])]
+        return pd.DataFrame(motion, columns=col_names)
+    except Exception:
+        return None
+
+
+def create_design_matrix(events, n_volumes, tr, motion_params=None):
     """
     Create GLM design matrix from task events.
-    
+
     Parameters:
         events: dict with condition names and (onsets, durations)
         n_volumes: Number of fMRI volumes
         tr: Repetition time
-    
+        motion_params: DataFrame with motion regressors (optional)
+
     Returns:
-        design_matrix: DataFrame with regressors
-        condition_names: List of condition names
+        design_matrix: DataFrame with task regressors, motion, and drift
     """
-    # Time vector
-    frame_times = np.arange(n_volumes) * tr
-    
     # HRF
     hrf = spm_hrf(tr)
-    
+
     design_matrix = {}
-    
+
     for condition, (onsets, durations) in events.items():
         # Create stimulus function (oversampled)
         oversampling = 10
         stim_dur = n_volumes * tr
         stim_times = np.arange(0, stim_dur, tr / oversampling)
         stim_func = np.zeros(len(stim_times))
-        
+
         for onset, dur in zip(onsets, durations):
-            # Find indices within stimulus duration
             start_idx = int(onset / (tr / oversampling))
             end_idx = int((onset + dur) / (tr / oversampling))
             if start_idx < len(stim_func) and end_idx <= len(stim_func):
                 stim_func[start_idx:end_idx] = 1
-        
+
         # Convolve with HRF
         hrf_oversampled = np.interp(
             np.arange(len(hrf) * oversampling) / oversampling,
@@ -202,12 +234,23 @@ def create_design_matrix(events, n_volumes, tr):
             hrf
         )
         convolved = np.convolve(stim_func, hrf_oversampled)[:len(stim_times)]
-        
+
         # Downsample to TR
         downsampled = convolved[::oversampling][:n_volumes]
-        
+
         design_matrix[condition] = downsampled
-    
+
+    # Add motion regressors (nuisance)
+    if motion_params is not None:
+        motion_arr = motion_params.values[:n_volumes]
+        for i in range(motion_arr.shape[1]):
+            design_matrix[f'mot_{i}'] = motion_arr[:, i]
+
+    # Add DCT high-pass filter basis
+    high_pass = GLM_PARAMS.get('high_pass', 128)
+    dct_basis = _create_dct_basis(n_volumes, tr, high_pass)
+    design_matrix.update(dct_basis)
+
     return pd.DataFrame(design_matrix)
 
 
@@ -309,39 +352,43 @@ def define_wm_network_parcels():
 def run_glm_roi(timeseries, design_matrix):
     """
     Run GLM on ROI time series.
-    
+
+    The design matrix should already include task regressors, motion
+    regressors, and DCT drift regressors. Only task-related beta
+    estimates are returned.
+
     Parameters:
         timeseries: 1D array of ROI-averaged BOLD signal
         design_matrix: DataFrame with regressors
-    
+
     Returns:
-        betas: Dict with condition name -> beta estimate
+        betas: Dict with task condition name -> beta estimate
         residuals: Model residuals
     """
     # Prepare design matrix
     X = design_matrix.values
-    
+
     # Add constant (intercept)
     X = np.column_stack([X, np.ones(len(timeseries))])
-    
-    # Z-score timeseries
-    y = (timeseries - np.mean(timeseries)) / (np.std(timeseries) + 1e-10)
-    
+
+    y = timeseries.copy()
+
     # OLS estimation
     try:
         betas = np.linalg.lstsq(X, y, rcond=None)[0]
-    except:
+    except Exception:
         betas = np.zeros(X.shape[1])
-    
+
     # Predicted values and residuals
     y_pred = X @ betas
     residuals = y - y_pred
-    
-    # Create beta dictionary (excluding intercept)
+
+    # Return only task-related betas (exclude motion, drift, intercept)
     beta_dict = {}
     for i, col in enumerate(design_matrix.columns):
-        beta_dict[col] = betas[i]
-    
+        if not col.startswith(('mot_', 'drift_')):
+            beta_dict[col] = betas[i]
+
     return beta_dict, residuals
 
 
@@ -416,8 +463,12 @@ def analyze_subject_activation(subject):
                 logger.warning(f"    No events found for {subject} run {run}")
                 continue
             
-            # Create design matrix
-            design_matrix = create_design_matrix(events, n_volumes, WM_TASK['tr'])
+            # Load motion parameters
+            motion_params = load_motion_regressors(subject, run)
+
+            # Create design matrix (with motion + high-pass filter)
+            design_matrix = create_design_matrix(events, n_volumes, WM_TASK['tr'],
+                                                 motion_params=motion_params)
             
             # Analyze each ROI
             for roi_name, roi_indices in parcels.items():

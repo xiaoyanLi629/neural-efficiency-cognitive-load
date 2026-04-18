@@ -60,14 +60,10 @@ from configs.config import setup_logging
 # PATH CONFIGURATION
 # =============================================================================
 
-PROJECT_ROOT = Path("/root/autodl-fs/CogSci/project_1")
+PROJECT_ROOT = Path(__file__).parent.parent
 RESULTS_DIR = PROJECT_ROOT / "results"
-DELTA_DIR = RESULTS_DIR / "delta_efficiency"
 
-# Default output directory (can be overridden)
-OUTPUT_DIR = RESULTS_DIR / "figures_h3_h4"
-
-# Find latest run directory for behavioral data
+# Find latest run directory (contains timestamped outputs from all stages)
 def get_latest_run():
     latest_link = RESULTS_DIR / "latest"
     if latest_link.exists():
@@ -77,6 +73,12 @@ def get_latest_run():
         return runs[-1] if runs else RESULTS_DIR
 
 LATEST_RUN = get_latest_run()
+
+# Delta efficiency lives inside the timestamped run directory (not results/ root)
+DELTA_DIR = LATEST_RUN / "delta_efficiency"
+
+# Default output directory (H3/H4 figures share the run's figures/ folder)
+OUTPUT_DIR = LATEST_RUN / "figures"
 
 # =============================================================================
 # COLOR SCHEME - imported from central config
@@ -163,9 +165,15 @@ def load_data():
     connectivity_file = LATEST_RUN / "connectivity" / "network_metrics.csv"
     if connectivity_file.exists():
         network_df = pd.read_csv(connectivity_file)
+        # Merge efficiency_group into network_df (needed by fig14, fig16, etc.)
+        if 'efficiency_group' not in network_df.columns and 'efficiency_group' in delta_df.columns:
+            network_df = network_df.merge(
+                delta_df[['subject', 'efficiency_group']],
+                on='subject', how='left'
+            )
     else:
         network_df = None
-    
+
     return delta_df, behavioral_df, network_df
 
 
@@ -736,21 +744,43 @@ def fig14_gap_reversal(delta_df, network_df, output_dir):
         print("  Warning: Network data not available, skipping")
         return
     
-    cols_to_keep = ['subject', 'efficiency_group'] + [c for c in delta_df.columns if c.startswith('delta_')]
-    net_cols = [c for c in network_df.columns if c != 'efficiency_group']
-    merged = delta_df[cols_to_keep].merge(network_df[net_cols], on='subject', how='inner')
+    # Work with a copy of network_df to avoid modifying the original
+    network_df = network_df.copy()
+    
+    # Ensure delta columns exist in network_df
+    if 'delta_modularity' not in network_df.columns:
+        if 'modularity_0bk' in network_df.columns and 'modularity_2bk' in network_df.columns:
+            network_df['delta_modularity'] = network_df['modularity_2bk'] - network_df['modularity_0bk']
+    
+    # Add other delta columns if missing
+    for metric in ['global_efficiency', 'local_efficiency', 'mean_connectivity']:
+        delta_col = f'delta_{metric}'
+        col_0bk = f'{metric}_0bk'
+        col_2bk = f'{metric}_2bk'
+        if delta_col not in network_df.columns and col_0bk in network_df.columns and col_2bk in network_df.columns:
+            network_df[delta_col] = network_df[col_2bk] - network_df[col_0bk]
+    
+    # Use network_df as the base for merged (it now has all the delta columns)
+    merged = network_df.copy()
+    
+    # Ensure efficiency_group is normalized
+    if 'efficiency_group' in merged.columns:
+        merged['efficiency_group'] = merged['efficiency_group'].replace({
+            'High_Efficiency': 'High',
+            'Low_Efficiency': 'Low'
+        })
     
     high_mask = merged['efficiency_group'] == 'High'
     low_mask = merged['efficiency_group'] == 'Low'
     
     fig = plt.figure(figsize=(18, 10))
-    gs = gridspec.GridSpec(2, 3, figure=fig, hspace=0.35, wspace=0.3,
-                           height_ratios=[1.2, 1])
+    gs = gridspec.GridSpec(2, 3, figure=fig, hspace=0.35, wspace=0.35,
+                           height_ratios=[1.2, 1], width_ratios=[1, 1, 1])
     
     # ==========================================================================
     # Panel A: Interaction Plot (Main Visualization)
     # ==========================================================================
-    ax1 = fig.add_subplot(gs[0, :2])
+    ax1 = fig.add_subplot(gs[0, 0])
     
     # Calculate means and SEMs
     metrics = ['modularity_0bk', 'modularity_2bk']
@@ -804,14 +834,14 @@ def fig14_gap_reversal(delta_df, network_df, output_dir):
     ax1.set_title('A. Group × Condition Interaction\n(Crossover Pattern)', 
                  fontsize=14, fontweight='bold')
     ax1.legend(loc='upper right', fontsize=11)
-    ax1.set_xlim(-0.3, 1.5)
+    ax1.set_xlim(-0.2, 1.4)
     ax1.spines['top'].set_visible(False)
     ax1.spines['right'].set_visible(False)
     
     # ==========================================================================
     # Panel B: Waterfall Chart
     # ==========================================================================
-    ax2 = fig.add_subplot(gs[0, 2])
+    ax2 = fig.add_subplot(gs[0, 1])
     
     # Create waterfall data
     categories = ['High\n(0-back)', 'High\nΔ', 'High\n(2-back)', '', 
@@ -863,7 +893,41 @@ def fig14_gap_reversal(delta_df, network_df, output_dir):
             fontweight='bold', color=LOW_EFF)
     
     # ==========================================================================
-    # Panel C: Distribution Comparison (Raincloud-style)
+    # Panel C (top right): Summary Statistics Table
+    # ==========================================================================
+    ax_table = fig.add_subplot(gs[0, 2])
+    ax_table.axis('off')
+    
+    # Create summary table
+    table_data = [
+        ['Metric', 'High Eff.', 'Low Eff.', 'Diff'],
+        ['Modularity (0bk)', f'{high_means[0]:.3f}', f'{low_means[0]:.3f}', 
+         f'{high_means[0]-low_means[0]:+.3f}'],
+        ['Modularity (2bk)', f'{high_means[1]:.3f}', f'{low_means[1]:.3f}',
+         f'{high_means[1]-low_means[1]:+.3f}'],
+        ['Δ Modularity', f'{h_delta:+.3f}', f'{l_delta:+.3f}',
+         f'{h_delta-l_delta:+.3f}'],
+    ]
+    
+    table = ax_table.table(cellText=table_data, loc='center', cellLoc='center',
+                     colWidths=[0.32, 0.22, 0.22, 0.22])
+    table.auto_set_font_size(False)
+    table.set_fontsize(11)
+    table.scale(1.2, 2.2)
+    
+    # Style header
+    for i in range(4):
+        table[(0, i)].set_facecolor('#34495e')
+        table[(0, i)].set_text_props(color='white', fontweight='bold')
+    
+    # Highlight delta row
+    for i in range(4):
+        table[(3, i)].set_facecolor('#d5f5e3')
+    
+    ax_table.set_title('C. Summary Statistics', fontsize=13, fontweight='bold', pad=20)
+    
+    # ==========================================================================
+    # Panel D: Distribution Comparison (Raincloud-style)
     # ==========================================================================
     ax3 = fig.add_subplot(gs[1, 0])
     
@@ -906,7 +970,7 @@ def fig14_gap_reversal(delta_df, network_df, output_dir):
     ax3.set_xticks([0.8, 1.2])
     ax3.set_xticklabels(['High Eff.', 'Low Eff.'], fontsize=11)
     ax3.set_ylabel('Δ Modularity', fontsize=11)
-    ax3.set_title(f'C. Δ Distribution\nt={t_stat:.2f}, p={p_val:.3f}, d={d:.2f}', 
+    ax3.set_title(f'D. Δ Distribution\nt={t_stat:.2f}, p={p_val:.3f}, d={d:.2f}', 
                  fontsize=12, fontweight='bold')
     ax3.spines['top'].set_visible(False)
     ax3.spines['right'].set_visible(False)
@@ -939,46 +1003,36 @@ def fig14_gap_reversal(delta_df, network_df, output_dir):
     
     ax4.axvline(x=0, color='black', linestyle='--', lw=1)
     ax4.set_yticks(y_pos)
-    ax4.set_yticklabels([m.replace('delta_', 'Δ ').replace('_', '\n').title() 
+    ax4.set_yticklabels([m.replace('delta_', 'Δ ').replace('_', ' ').title() 
                          for m in metrics_for_forest], fontsize=10)
     ax4.set_xlabel("Cohen's d (High − Low)", fontsize=11)
-    ax4.set_title('D. Effect Sizes (95% CI)', fontsize=12, fontweight='bold')
+    ax4.set_title('E. Effect Sizes (95% CI)', fontsize=12, fontweight='bold')
     ax4.spines['top'].set_visible(False)
     ax4.spines['right'].set_visible(False)
     
     # ==========================================================================
-    # Panel E: Summary Statistics Table
+    # Panel F: Interpretation Text
     # ==========================================================================
     ax5 = fig.add_subplot(gs[1, 2])
     ax5.axis('off')
     
-    # Create summary table
-    table_data = [
-        ['Metric', 'High Eff.', 'Low Eff.', 'Diff', 'p-value'],
-        ['Modularity (0bk)', f'{high_means[0]:.3f}', f'{low_means[0]:.3f}', 
-         f'{high_means[0]-low_means[0]:+.3f}', ''],
-        ['Modularity (2bk)', f'{high_means[1]:.3f}', f'{low_means[1]:.3f}',
-         f'{high_means[1]-low_means[1]:+.3f}', ''],
-        ['Δ Modularity', f'{np.mean(high_delta):.3f}', f'{np.mean(low_delta):.3f}',
-         f'{np.mean(high_delta)-np.mean(low_delta):+.3f}', f'{p_val:.3f}*'],
-    ]
-    
-    table = ax5.table(cellText=table_data, loc='center', cellLoc='center',
-                     colWidths=[0.25, 0.18, 0.18, 0.18, 0.15])
-    table.auto_set_font_size(False)
-    table.set_fontsize(10)
-    table.scale(1.2, 2)
-    
-    # Style header
-    for i in range(5):
-        table[(0, i)].set_facecolor('#34495e')
-        table[(0, i)].set_text_props(color='white', fontweight='bold')
-    
-    # Highlight significant row
-    for i in range(5):
-        table[(3, i)].set_facecolor('#d5f5e3')
-    
-    ax5.set_title('E. Summary Statistics', fontsize=12, fontweight='bold', pad=20)
+    # Add interpretation text
+    interpretation = (
+        "Key Findings:\n\n"
+        "• Gap Reversal: High-efficiency\n"
+        "  individuals show LOWER modularity\n"
+        "  under high load (2-back)\n\n"
+        "• Compensatory mechanism:\n"
+        "  Low-efficiency individuals\n"
+        "  increase modularity to cope\n\n"
+        "• Supports H4: Compensatory\n"
+        "  Reorganization Hypothesis"
+    )
+    ax5.text(0.1, 0.9, interpretation, transform=ax5.transAxes,
+             fontsize=11, va='top', ha='left',
+             bbox=dict(boxstyle='round,pad=0.5', facecolor='#f8f9fa', 
+                      edgecolor='#dee2e6', alpha=0.9))
+    ax5.set_title('F. Interpretation', fontsize=12, fontweight='bold', pad=20)
     
     fig.suptitle('Compensatory Reorganization: Gap Reversal Analysis',
                 fontsize=16, fontweight='bold', y=0.98)
@@ -1042,7 +1096,7 @@ def fig15_radar_chart(delta_df, output_dir):
     ax.scatter(angles[:-1], low_norm[:-1], color=LOW_EFF, s=100, zorder=5)
     
     # Labels - move outward to avoid overlap
-    metric_labels = [m.replace('delta_', '|Δ| ').replace('_', '\n').title() for m in metrics]
+    metric_labels = [m.replace('delta_', '|Δ| ').replace('_', ' ').title() for m in metrics]
     ax.set_xticks(angles[:-1])
     ax.set_xticklabels(metric_labels, fontsize=10)
     
@@ -1057,7 +1111,7 @@ def fig15_radar_chart(delta_df, output_dir):
     # Adjust the position of tick labels to be further from center
     ax.set_rlabel_position(30)
     
-    ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1), fontsize=11)
+    ax.legend(loc='upper right', fontsize=11)
     
     ax.set_title('H3: Network Stability Comparison\n|Δ Efficiency| by Group (Normalized)',
                 fontsize=14, fontweight='bold', pad=20)
@@ -1892,11 +1946,12 @@ def run_h3_h4_visualization(output_dir=None):
     Returns:
         bool: True if successful, False otherwise
     """
-    global LATEST_RUN
+    global LATEST_RUN, DELTA_DIR
     LATEST_RUN = get_latest_run()
-    
+    DELTA_DIR = LATEST_RUN / "delta_efficiency"
+
     if output_dir is None:
-        output_dir = OUTPUT_DIR
+        output_dir = LATEST_RUN / "figures"
     else:
         output_dir = Path(output_dir)
     

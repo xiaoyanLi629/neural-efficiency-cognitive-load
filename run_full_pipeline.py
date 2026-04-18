@@ -4,8 +4,8 @@
 Neural Efficiency Under Cognitive Load: Full Analysis Pipeline
 =============================================================================
 
-CogSci 2026 Submission
-Title: "Neural Efficiency Under Cognitive Load: Why Some Minds Work Smarter, Not Harder"
+BIBM 2026 Submission
+Title: "Network Stability as the Hallmark of Neural Efficiency Under Cognitive Load"
 
 This script runs the complete analysis pipeline for investigating how cognitive
 load modulates neural efficiency during working memory tasks.
@@ -46,18 +46,34 @@ from datetime import datetime
 PROJECT_ROOT = Path(__file__).parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-# Import config module and initialize timestamped directories
+# Import config module
 from configs import config
 from configs.config import setup_logging, init_output_dirs, reset_run_timestamp
 
-# Initialize timestamped output directories for this run
-reset_run_timestamp()  # Ensure fresh timestamp for new run
-output_dirs = init_output_dirs(use_timestamp=True)
+# Parse --run-dir early (before init) to allow reusing an existing run directory
+import sys as _sys
+_run_dir_arg = None
+for i, arg in enumerate(_sys.argv):
+    if arg == '--run-dir' and i + 1 < len(_sys.argv):
+        _run_dir_arg = _sys.argv[i + 1]
+        break
+
+if _run_dir_arg:
+    # Reuse existing run directory
+    from pathlib import Path as _P
+    run_name = _P(_run_dir_arg).name if '/' in _run_dir_arg else _run_dir_arg
+    config._RUN_TIMESTAMP = run_name.replace('run_', '')
+    output_dirs = init_output_dirs(use_timestamp=True)
+else:
+    # Fresh run
+    reset_run_timestamp()
+    output_dirs = init_output_dirs(use_timestamp=True)
 
 # Now import the directory paths (they have been updated by init_output_dirs)
 from configs.config import (
     RESULTS_DIR, FIGURES_DIR, LOGS_DIR,
     BEHAVIORAL_DIR, ACTIVATION_DIR, CONNECTIVITY_DIR, EFFICIENCY_DIR,
+    DELTA_EFFICIENCY_DIR,
 )
 
 logger = setup_logging('pipeline')
@@ -239,7 +255,7 @@ def run_full_pipeline(stages='all', skip_existing=False, verbose=False):
     # Header
     print("\n" + "="*70)
     print(" NEURAL EFFICIENCY ANALYSIS PIPELINE ")
-    print(" CogSci 2026: Why Some Minds Work Smarter, Not Harder")
+    print(" BIBM 2026: Network Stability as the Hallmark of Neural Efficiency")
     print("="*70)
     print(f" Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f" Output:  {RESULTS_DIR}")
@@ -253,7 +269,7 @@ def run_full_pipeline(stages='all', skip_existing=False, verbose=False):
         4: ('Efficiency Metrics', run_stage4_efficiency, EFFICIENCY_DIR / 'neural_efficiency.csv'),
         5: ('Statistical Analysis', run_stage5_statistics, EFFICIENCY_DIR / 'hypothesis_tests.json'),
         6: ('Visualization', run_stage6_visualization, FIGURES_DIR / 'fig01_behavioral_load_effect.png'),
-        7: ('Delta Analysis (H3,H4)', run_stage7_delta_analysis, RESULTS_DIR / 'delta_efficiency' / 'delta_efficiency.csv'),
+        7: ('Delta Analysis (H3,H4)', run_stage7_delta_analysis, DELTA_EFFICIENCY_DIR / 'delta_efficiency.csv'),
         8: ('H3/H4 Visualization', run_stage8_h3h4_visualization, FIGURES_DIR / 'fig11_delta_heatmap.png'),
         9: ('AI/ML Analysis', run_stage9_ai_analysis, EFFICIENCY_DIR / 'ai_classification_results.json'),
     }
@@ -348,7 +364,7 @@ def full_analysis():
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Neural Efficiency Analysis Pipeline for CogSci 2026',
+        description='Neural Efficiency Analysis Pipeline for BIBM 2026',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -365,6 +381,8 @@ Examples:
                        help='Skip stages with existing output files')
     parser.add_argument('--verbose', '-v', action='store_true',
                        help='Enable verbose output')
+    parser.add_argument('--run-dir', type=str, default=None,
+                       help='Reuse an existing run directory (e.g. run_20260415_122619)')
     parser.add_argument('--quick', choices=['behavioral', 'brain-behavior', 'full'],
                        help='Quick run presets')
     

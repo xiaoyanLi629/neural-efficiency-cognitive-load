@@ -61,49 +61,33 @@ logger = setup_logging('connectivity_analysis')
 
 def get_network_parcels():
     """
-    Define network parcels based on approximate HCP grayordinate locations.
-    
-    Returns dict with network name -> list of (parcel_name, indices).
+    Define network parcels from Schaefer 2018 atlas (non-overlapping).
+
+    Uses the standardized definitions in configs/schaefer_atlas.py.
+    Returns dict with network name -> {parcel_name: indices}.
     """
-    n_left = 29696
-    
-    network_parcels = {
-        'FPN': {
-            'DLPFC_L': list(range(8000, 10000)),
-            'DLPFC_R': list(range(n_left + 8000, n_left + 10000)),
-            'VLPFC_L': list(range(6000, 7500)),
-            'VLPFC_R': list(range(n_left + 6000, n_left + 7500)),
-            'PPC_L': list(range(15000, 17000)),
-            'PPC_R': list(range(n_left + 15000, n_left + 17000)),
-            'ACC': list(range(3000, 4500)) + list(range(n_left + 3000, n_left + 4500)),
-        },
-        'DMN': {
-            'mPFC': list(range(1000, 2500)) + list(range(n_left + 1000, n_left + 2500)),
-            'PCC': list(range(20000, 21500)) + list(range(n_left + 20000, n_left + 21500)),
-            'Angular_L': list(range(18000, 19000)),
-            'Angular_R': list(range(n_left + 18000, n_left + 19000)),
-            'MTG_L': list(range(22000, 23000)),
-            'MTG_R': list(range(n_left + 22000, n_left + 23000)),
-        },
-        'DAN': {
-            'FEF_L': list(range(5000, 5800)),
-            'FEF_R': list(range(n_left + 5000, n_left + 5800)),
-            'IPS_L': list(range(16500, 17500)),
-            'IPS_R': list(range(n_left + 16500, n_left + 17500)),
-        },
-        'Visual': {
-            'V1_L': list(range(24000, 26000)),
-            'V1_R': list(range(n_left + 24000, n_left + 26000)),
-            'V4_L': list(range(26000, 27000)),
-            'V4_R': list(range(n_left + 26000, n_left + 27000)),
-        },
-        'Motor': {
-            'M1_L': list(range(4000, 5000)),
-            'M1_R': list(range(n_left + 4000, n_left + 5000)),
-            'SMA': list(range(4500, 5200)) + list(range(n_left + 4500, n_left + 5200)),
-        }
+    from configs.schaefer_atlas import SCHAEFER_100_7NETWORKS
+
+    # Map Schaefer network names to our analysis network names
+    network_map = {
+        'Control': 'FPN',
+        'Default': 'DMN',
+        'DorsAttn': 'DAN',
+        'SalVentAttn': 'SAL',
+        'Visual': 'Visual',
+        'SomMot': 'Motor',
     }
-    
+
+    network_parcels = {}
+    for name, info in SCHAEFER_100_7NETWORKS.items():
+        schaefer_net = info['network']
+        our_net = network_map.get(schaefer_net)
+        if our_net is None:
+            continue
+        if our_net not in network_parcels:
+            network_parcels[our_net] = {}
+        network_parcels[our_net][name] = info['vertices']
+
     return network_parcels
 
 
@@ -434,53 +418,72 @@ def compute_graph_metrics(fc_matrix, threshold=0.15):
 def analyze_subject_connectivity(subject):
     """
     Analyze connectivity for a single subject.
+
+    Returns:
+        averaged: dict of summary metrics (averaged across runs)
+        wm_matrices: dict with keys '0bk', '2bk' mapping to WM-ROI FC matrices
+                     averaged across runs (used by GNN in s10)
     """
     logger.info(f"  Processing subject {subject}...")
-    
+
     network_parcels = get_network_parcels()
-    
+
     # Flatten parcels
     all_parcels = {}
     for net_name, parcels in network_parcels.items():
         for parcel_name, indices in parcels.items():
             all_parcels[parcel_name] = indices
-    
+
+    # WM-specific ROIs (matching Stage 2 activation analysis)
+    # These are what the GNN in s10 expects
+    from configs.schaefer_atlas import define_wm_network_parcels
+    wm_parcels = define_wm_network_parcels()
+    wm_roi_names = list(wm_parcels.keys())
+
     results = {'subject': subject}
-    
+    wm_fc_per_run = {'0bk': [], '2bk': []}  # accumulate across LR/RL
+
     for run in ['LR', 'RL']:
         fmri_path = get_wm_fmri_path(subject, run)
         if not fmri_path.exists():
             continue
-        
+
         try:
             # Load data
             cifti = nib.load(str(fmri_path))
             cifti_data = cifti.get_fdata()
-            
+
             # Get events
             from scripts.s02_activation_analysis import get_task_events
             events = get_task_events(subject, run)
-            
-            # Extract parcel time series
+
+            # Extract parcel time series (Schaefer network parcels)
             parcel_ts_full = {}
             for parcel_name, indices in all_parcels.items():
                 ts = extract_parcel_timeseries(cifti_data, indices)
                 ts = preprocess_timeseries(ts)
                 parcel_ts_full[parcel_name] = ts
-            
+
+            # Extract WM ROI time series (for GNN connectivity)
+            wm_ts_full = {}
+            for roi_name, vertices in wm_parcels.items():
+                ts = extract_parcel_timeseries(cifti_data, vertices)
+                ts = preprocess_timeseries(ts)
+                wm_ts_full[roi_name] = ts
+
             # Compute full-run connectivity
             fc_full, parcel_names = compute_connectivity_matrix(parcel_ts_full)
-            
+
             # Network-level connectivity
             net_conn = compute_network_connectivity(fc_full, parcel_names, network_parcels)
             for key, val in net_conn.items():
                 results[f'{key}_{run}'] = val
-            
+
             # Graph metrics
             graph_metrics = compute_graph_metrics(fc_full)
             for key, val in graph_metrics.items():
                 results[f'{key}_{run}'] = val
-            
+
             # Condition-specific connectivity (0-back vs 2-back)
             for condition in ['0bk', '2bk']:
                 parcel_ts_cond = {}
@@ -488,17 +491,27 @@ def analyze_subject_connectivity(subject):
                     block_ts = extract_task_blocks(ts, events, condition, WM_TASK['tr'])
                     if len(block_ts) > 10:
                         parcel_ts_cond[parcel_name] = block_ts
-                
+
                 if len(parcel_ts_cond) == len(all_parcels):
                     fc_cond, _ = compute_connectivity_matrix(parcel_ts_cond)
                     graph_cond = compute_graph_metrics(fc_cond)
                     for key, val in graph_cond.items():
                         results[f'{key}_{condition}_{run}'] = val
-                    
+
                     net_conn_cond = compute_network_connectivity(fc_cond, parcel_names, network_parcels)
                     for key, val in net_conn_cond.items():
                         results[f'{key}_{condition}_{run}'] = val
-                        
+
+                # WM ROI FC matrix for condition (used by GNN)
+                wm_ts_cond = {}
+                for roi_name, ts in wm_ts_full.items():
+                    block_ts = extract_task_blocks(ts, events, condition, WM_TASK['tr'])
+                    if len(block_ts) > 10:
+                        wm_ts_cond[roi_name] = block_ts
+                if len(wm_ts_cond) == len(wm_parcels):
+                    wm_fc_cond, _ = compute_connectivity_matrix(wm_ts_cond)
+                    wm_fc_per_run[condition].append(wm_fc_cond)
+
         except Exception as e:
             logger.error(f"    Error processing {subject} run {run}: {e}")
             continue
@@ -506,7 +519,7 @@ def analyze_subject_connectivity(subject):
     # Average across runs
     averaged = {'subject': subject}
     run_keys = [k for k in results.keys() if k != 'subject']
-    
+
     for key in set([k.rsplit('_', 1)[0] for k in run_keys if k.endswith(('_LR', '_RL'))]):
         lr_key = f"{key}_LR"
         rl_key = f"{key}_RL"
@@ -516,8 +529,14 @@ def analyze_subject_connectivity(subject):
             averaged[key] = results[lr_key]
         elif rl_key in results:
             averaged[key] = results[rl_key]
-    
-    return averaged
+
+    # Average WM FC matrices across runs
+    wm_matrices = {}
+    for cond in ['0bk', '2bk']:
+        if wm_fc_per_run[cond]:
+            wm_matrices[cond] = np.mean(wm_fc_per_run[cond], axis=0)
+
+    return averaged, wm_matrices
 
 
 def run_connectivity_analysis():
@@ -537,11 +556,20 @@ def run_connectivity_analysis():
     
     # Analyze all subjects
     all_results = []
+    wm_matrices_0bk = {}
+    wm_matrices_2bk = {}
     for subject in SUBJECTS:
-        result = analyze_subject_connectivity(subject)
+        out = analyze_subject_connectivity(subject)
+        if not out:
+            continue
+        result, wm_mats = out
         if result:
             all_results.append(result)
-    
+        if '0bk' in wm_mats:
+            wm_matrices_0bk[subject] = wm_mats['0bk']
+        if '2bk' in wm_mats:
+            wm_matrices_2bk[subject] = wm_mats['2bk']
+
     # Create DataFrame
     results_df = pd.DataFrame(all_results)
     
@@ -560,9 +588,17 @@ def run_connectivity_analysis():
     # Save results
     logger.info("\nSaving results...")
     results_df.to_csv(config.CONNECTIVITY_DIR / 'network_metrics.csv', index=False)
-    
+
     with open(config.CONNECTIVITY_DIR / 'connectivity_stats.json', 'w') as f:
         json.dump(stats_results, f, indent=2)
+
+    # Save per-subject WM-ROI connectivity matrices (for GNN in s10)
+    if wm_matrices_0bk:
+        np.savez(config.CONNECTIVITY_DIR / 'connectivity_matrices_0bk.npz', **wm_matrices_0bk)
+        logger.info(f"  Saved connectivity_matrices_0bk.npz ({len(wm_matrices_0bk)} subjects)")
+    if wm_matrices_2bk:
+        np.savez(config.CONNECTIVITY_DIR / 'connectivity_matrices_2bk.npz', **wm_matrices_2bk)
+        logger.info(f"  Saved connectivity_matrices_2bk.npz ({len(wm_matrices_2bk)} subjects)")
     
     logger.info("\n" + "="*60)
     logger.info("Connectivity Analysis Complete!")

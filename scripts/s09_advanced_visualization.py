@@ -88,7 +88,7 @@ plt.rcParams.update({
 
 def get_latest_run():
     """Get the latest run directory."""
-    results_dir = Path('/root/autodl-fs/CogSci/project_1/results')
+    results_dir = Path(__file__).parent.parent / 'results'
     runs = sorted([d for d in results_dir.iterdir() if d.name.startswith('run_')])
     return runs[-1] if runs else None
 
@@ -130,7 +130,7 @@ def load_all_data(run_dir=None):
             data['conn_stats'] = json.load(f)
     
     # Delta efficiency (H3/H4)
-    delta_dir = Path('/root/autodl-fs/CogSci/project_1/results/delta_efficiency')
+    delta_dir = run_dir / 'delta_efficiency'
     delta_file = delta_dir / 'delta_efficiency.csv'
     if delta_file.exists():
         data['delta'] = pd.read_csv(delta_file)
@@ -320,8 +320,8 @@ def fig18_roi_activation_map(data, output_dir):
         print("  Warning: No ROI activation columns found")
         return
     
-    fig = plt.figure(figsize=(18, 14))
-    gs = gridspec.GridSpec(2, 2, figure=fig, hspace=0.4, wspace=0.45)
+    fig = plt.figure(figsize=(20, 16))
+    gs = gridspec.GridSpec(2, 2, figure=fig, hspace=0.5, wspace=0.35)
     
     # Split by group (handle both naming conventions)
     high_mask = activation_df['efficiency_group'].isin(['High', 'High_Efficiency'])
@@ -350,11 +350,13 @@ def fig18_roi_activation_map(data, output_dir):
     
     ax1.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
     ax1.set_xticks(x)
-    ax1.set_xticklabels([r.replace('_', '\n') for r in available_rois], rotation=45, ha='right', fontsize=8)
-    ax1.set_ylabel('Activation (β)', fontsize=11)
+    ax1.set_xticklabels([r.replace('_', ' ') for r in available_rois], rotation=45, ha='right', fontsize=11)
+    ax1.set_ylabel('Activation (β)', fontsize=14)
+    ax1.set_xlabel('ROI', fontsize=14)
+    ax1.tick_params(axis='y', labelsize=11)
     ax1.set_title('A. ROI Activation Under Cognitive Load (2-back)\nHigh vs Low Efficiency Groups', 
-                  fontsize=11, fontweight='bold')
-    ax1.legend(loc='upper left', bbox_to_anchor=(1.02, 1), fontsize=9, frameon=True)
+                  fontsize=13, fontweight='bold')
+    ax1.legend(loc='upper left', bbox_to_anchor=(1.02, 1), fontsize=11, frameon=True)
     
     # Add significance markers
     for i, roi in enumerate(available_rois):
@@ -384,11 +386,13 @@ def fig18_roi_activation_map(data, output_dir):
     
     ax2.axhline(y=0, color='black', linestyle='-', linewidth=1)
     ax2.set_xticks(x)
-    ax2.set_xticklabels([r.replace('_', '\n') for r in available_rois], rotation=45, ha='right', fontsize=8)
-    ax2.set_ylabel('Load Effect (2bk - 0bk)', fontsize=11)
+    ax2.set_xticklabels([r.replace('_', ' ') for r in available_rois], rotation=45, ha='right', fontsize=11)
+    ax2.set_ylabel('Load Effect (2bk - 0bk)', fontsize=14)
+    ax2.set_xlabel('ROI', fontsize=14)
+    ax2.tick_params(axis='y', labelsize=11)
     ax2.set_title('B. Cognitive Load Effect by Group\n(Targeted vs Diffuse Recruitment)', 
-                  fontsize=11, fontweight='bold')
-    ax2.legend(loc='upper left', bbox_to_anchor=(1.02, 1), fontsize=9, frameon=True)
+                  fontsize=13, fontweight='bold')
+    ax2.legend(loc='upper left', bbox_to_anchor=(1.02, 1), fontsize=11, frameon=True)
     
     # ==========================================================================
     # Panel C: Group × Condition Interaction Effects
@@ -428,10 +432,12 @@ def fig18_roi_activation_map(data, output_dir):
     bars = ax3.bar(x, interactions, color=colors, edgecolor='black', alpha=0.8)
     ax3.axhline(y=0, color='black', linestyle='-', linewidth=1)
     ax3.set_xticks(x)
-    ax3.set_xticklabels([r.replace('_', '\n') for r in available_rois], rotation=45, ha='right', fontsize=8)
-    ax3.set_ylabel('Interaction Effect\n(High Load Effect - Low Load Effect)', fontsize=10)
+    ax3.set_xticklabels([r.replace('_', ' ') for r in available_rois], rotation=45, ha='right', fontsize=11)
+    ax3.set_ylabel('Interaction Effect\n(High Load Effect - Low Load Effect)', fontsize=13)
+    ax3.set_xlabel('ROI', fontsize=14)
+    ax3.tick_params(axis='y', labelsize=11)
     ax3.set_title('C. Group × Condition Interaction\nPositive = High Eff shows greater load increase', 
-                  fontsize=11, fontweight='bold')
+                  fontsize=13, fontweight='bold')
     
     # Add significance markers
     for i, (inter, p) in enumerate(zip(interactions, interaction_p)):
@@ -439,7 +445,7 @@ def fig18_roi_activation_map(data, output_dir):
             marker = '**' if p < 0.01 else '*'
             y_pos = inter + 0.001 * np.sign(inter) if inter != 0 else 0.001
             ax3.text(i, y_pos, marker, ha='center', va='bottom' if inter > 0 else 'top', 
-                    fontsize=11, fontweight='bold')
+                    fontsize=12, fontweight='bold')
     
     # Add legend
     from matplotlib.patches import Patch
@@ -448,7 +454,7 @@ def fig18_roi_activation_map(data, output_dir):
         Patch(facecolor=COLORS['low_eff'], label='Low Eff > High Eff (p<.05)'),
         Patch(facecolor='lightgray', label='Not significant'),
     ]
-    ax3.legend(handles=legend_elements, loc='upper left', bbox_to_anchor=(1.02, 1), fontsize=8, frameon=True)
+    ax3.legend(handles=legend_elements, loc='upper left', bbox_to_anchor=(1.02, 1.35), fontsize=10, frameon=True)
     
     # ==========================================================================
     # Panel D: Individual Activation Heatmap (sorted by group)
@@ -481,15 +487,19 @@ def fig18_roi_activation_map(data, output_dir):
         y_labels.append(f"{group_marker} S{row['subject']}")
     
     ax4.set_yticks(range(len(activation_sorted)))
-    ax4.set_yticklabels(y_labels, fontsize=8)
+    ax4.set_yticklabels(y_labels, fontsize=11)
     ax4.set_xticks(range(len(load_cols)))
-    ax4.set_xticklabels([c.replace('_load_effect', '').replace('_', '\n') 
-                        for c in load_cols], rotation=45, ha='right', fontsize=8)
+    ax4.set_xticklabels([c.replace('_load_effect', '').replace('_', ' ') 
+                        for c in load_cols], rotation=45, ha='right', fontsize=11)
+    ax4.set_ylabel('Subject', fontsize=14)
+    ax4.set_xlabel('ROI', fontsize=14)
     ax4.set_title('D. Individual Load Effect Profiles\n● High Efficiency  ○ Low Efficiency', 
-                  fontsize=11, fontweight='bold')
+                  fontsize=13, fontweight='bold')
     
-    cbar = plt.colorbar(im, ax=ax4, shrink=0.8)
-    cbar.set_label('Load Effect (β)', fontsize=10)
+    # Add colorbar with adjusted position to avoid overlap with y-axis labels
+    cbar = plt.colorbar(im, ax=ax4, shrink=0.8, pad=0.02)
+    cbar.set_label('Load Effect (β)', fontsize=13)
+    cbar.ax.tick_params(labelsize=11)
     
     # Remove grid
     ax4.grid(False)
@@ -499,9 +509,9 @@ def fig18_roi_activation_map(data, output_dir):
     # ==========================================================================
     fig.suptitle('ROI Activation Patterns: High vs Low Efficiency Groups\n'
                  'Supporting "Precise Activation" Hypothesis',
-                fontsize=14, fontweight='bold', y=0.98)
+                fontsize=17, fontweight='bold', y=0.98)
     
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.tight_layout(rect=[0, 0, 0.92, 0.95])
     
     fig.savefig(output_dir / 'fig18_roi_activation_map.png', dpi=300, bbox_inches='tight')
     fig.savefig(output_dir / 'fig18_roi_activation_map.svg', bbox_inches='tight')
@@ -787,10 +797,10 @@ def fig20_brain_behavior_correlation(data, output_dir):
         ax6.grid(False)
         
         ax6.set_xticks(range(len(corr_vars)))
-        ax6.set_xticklabels([v.replace('_', '\n') for v in corr_vars], 
+        ax6.set_xticklabels([v.replace('_', ' ') for v in corr_vars], 
                            rotation=45, ha='right', fontsize=9)
         ax6.set_yticks(range(len(corr_vars)))
-        ax6.set_yticklabels([v.replace('_', '\n') for v in corr_vars], fontsize=9)
+        ax6.set_yticklabels([v.replace('_', ' ') for v in corr_vars], fontsize=9)
         ax6.set_title('F. Correlation Matrix', fontsize=12, fontweight='bold')
         
         cbar = plt.colorbar(im, ax=ax6, shrink=0.8)

@@ -80,7 +80,7 @@ from configs.config import setup_logging
 # When running standalone, resolve 'latest' symlink to actual directory
 if __name__ == '__main__':
     from pathlib import Path
-    latest_link = Path("/root/autodl-fs/CogSci/project_1/results/latest")
+    latest_link = config.PROJECT_DIR / "results" / "latest"
     if latest_link.is_symlink():
         actual_dir = latest_link.resolve()
         config.RESULTS_DIR = actual_dir
@@ -89,7 +89,7 @@ if __name__ == '__main__':
         config.CONNECTIVITY_DIR = actual_dir / "connectivity"
         config.EFFICIENCY_DIR = actual_dir / "efficiency"
         config.FIGURES_DIR = actual_dir / "figures"
-        config.LOGS_DIR = Path("/root/autodl-fs/CogSci/project_1/logs") / actual_dir.name
+        config.LOGS_DIR = config.PROJECT_DIR / "logs" / actual_dir.name
         config.LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 logger = setup_logging('unified_visualization')

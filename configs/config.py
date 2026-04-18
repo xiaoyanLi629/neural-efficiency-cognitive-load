@@ -1,11 +1,15 @@
 """
 =============================================================================
 Project Configuration: Neural Efficiency Under Cognitive Load
-CogSci 2026 Submission
+BIBM 2026 Submission
 =============================================================================
 
 This configuration file centralizes all paths, parameters, and constants
 used throughout the analysis pipeline.
+
+Path Resolution Order:
+    1. Environment variables (HCP_DATA_ROOT, PROJECT_DIR)
+    2. Default paths based on project location
 """
 
 import os
@@ -16,10 +20,12 @@ from datetime import datetime
 # PROJECT PATHS
 # =============================================================================
 
-# Base paths
-PROJECT_ROOT = Path("/root/autodl-fs/CogSci")
-DATA_ROOT = PROJECT_ROOT / "data"
-PROJECT_DIR = PROJECT_ROOT / "project_1"
+# Project directory is the parent of configs/
+PROJECT_DIR = Path(__file__).parent.parent
+
+# Data root: configurable via environment variable
+# Default: project_dir/data (HCP subject directories)
+DATA_ROOT = Path(os.environ.get("HCP_DATA_ROOT", PROJECT_DIR / "data"))
 
 # =============================================================================
 # TIMESTAMPED OUTPUT DIRECTORIES
@@ -43,35 +49,36 @@ def reset_run_timestamp():
 def init_output_dirs(use_timestamp=True):
     """
     Initialize output directories for the current run.
-    
+
     Args:
         use_timestamp: If True, create timestamped subdirectory.
                       If False, use default 'latest' directory.
-    
+
     Returns:
         dict: Dictionary containing all output directory paths
     """
     global RESULTS_DIR, BEHAVIORAL_DIR, ACTIVATION_DIR, CONNECTIVITY_DIR
-    global EFFICIENCY_DIR, FIGURES_DIR, LOGS_DIR
-    
+    global EFFICIENCY_DIR, DELTA_EFFICIENCY_DIR, FIGURES_DIR, LOGS_DIR
+
     if use_timestamp:
         timestamp = get_run_timestamp()
         run_name = f"run_{timestamp}"
     else:
         run_name = "latest"
-    
+
     # Create timestamped results directory
     RESULTS_DIR = PROJECT_DIR / "results" / run_name
     BEHAVIORAL_DIR = RESULTS_DIR / "behavioral"
     ACTIVATION_DIR = RESULTS_DIR / "activation"
     CONNECTIVITY_DIR = RESULTS_DIR / "connectivity"
     EFFICIENCY_DIR = RESULTS_DIR / "efficiency"
+    DELTA_EFFICIENCY_DIR = RESULTS_DIR / "delta_efficiency"
     FIGURES_DIR = RESULTS_DIR / "figures"
     LOGS_DIR = PROJECT_DIR / "logs" / run_name
     
     # Create directories
-    for d in [BEHAVIORAL_DIR, ACTIVATION_DIR, CONNECTIVITY_DIR, 
-              EFFICIENCY_DIR, FIGURES_DIR, LOGS_DIR]:
+    for d in [BEHAVIORAL_DIR, ACTIVATION_DIR, CONNECTIVITY_DIR,
+              EFFICIENCY_DIR, DELTA_EFFICIENCY_DIR, FIGURES_DIR, LOGS_DIR]:
         d.mkdir(parents=True, exist_ok=True)
     
     # Create a symlink to the latest run
@@ -93,6 +100,7 @@ def init_output_dirs(use_timestamp=True):
         'activation': ACTIVATION_DIR,
         'connectivity': CONNECTIVITY_DIR,
         'efficiency': EFFICIENCY_DIR,
+        'delta_efficiency': DELTA_EFFICIENCY_DIR,
         'figures': FIGURES_DIR,
         'logs': LOGS_DIR,
         'run_name': run_name,
@@ -105,6 +113,7 @@ BEHAVIORAL_DIR = RESULTS_DIR / "behavioral"
 ACTIVATION_DIR = RESULTS_DIR / "activation"
 CONNECTIVITY_DIR = RESULTS_DIR / "connectivity"
 EFFICIENCY_DIR = RESULTS_DIR / "efficiency"
+DELTA_EFFICIENCY_DIR = RESULTS_DIR / "delta_efficiency"
 FIGURES_DIR = RESULTS_DIR / "figures"
 LOGS_DIR = PROJECT_DIR / "logs"
 
@@ -116,14 +125,16 @@ LOGS_DIR = PROJECT_DIR / "logs"
 # =============================================================================
 
 def get_subject_list():
-    """Get list of all available subjects"""
+    """Get list of all available subjects from data directory."""
     subjects = []
-    for item in DATA_ROOT.iterdir():
-        if item.is_dir() and item.name.isdigit():
-            subjects.append(item.name)
+    if DATA_ROOT.exists():
+        for item in DATA_ROOT.iterdir():
+            if item.is_dir() and item.name.isdigit():
+                subjects.append(item.name)
     return sorted(subjects)
 
 SUBJECTS = get_subject_list()
+N_SUBJECTS = len(SUBJECTS)
 
 # =============================================================================
 # TASK PARAMETERS
@@ -296,9 +307,9 @@ STATS_PARAMS = {
 # =============================================================================
 
 def get_wm_fmri_path(subject, run='LR'):
-    """Get path to WM task fMRI data"""
-    return (DATA_ROOT / subject / "MNINonLinear" / "Results" / 
-            f"tfMRI_WM_{run}" / f"tfMRI_WM_{run}_Atlas_MSMAll_hp0_clean_rclean_tclean.dtseries.nii")
+    """Get path to WM task fMRI data (S1200 release naming)"""
+    return (DATA_ROOT / subject / "MNINonLinear" / "Results" /
+            f"tfMRI_WM_{run}" / f"tfMRI_WM_{run}_Atlas_MSMAll.dtseries.nii")
 
 def get_wm_evs_path(subject, run='LR'):
     """Get path to WM task EVs directory"""

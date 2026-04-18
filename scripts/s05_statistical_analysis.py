@@ -268,18 +268,44 @@ def test_h2_neural_efficiency(df):
                 'neural_efficiency_pattern': 'Yes' if d_0bk < 0 and d_2bk >= 0 else 'No'
             }
     
-    # Count ROIs showing efficiency pattern
-    efficiency_rois = sum(1 for v in results['roi_comparisons'].values() 
-                         if v.get('neural_efficiency_pattern') == 'Yes')
-    total_rois = len(results['roi_comparisons'])
-    
+    # Count ROIs showing efficiency pattern. Exclude any aggregate ('mean')
+    # summary entries from the ROI count used for the binomial test.
+    real_rois = {k: v for k, v in results['roi_comparisons'].items()
+                 if k != 'mean'}
+    efficiency_rois = sum(1 for v in real_rois.values()
+                          if v.get('neural_efficiency_pattern') == 'Yes')
+    total_rois = len(real_rois)
+
+    # Binomial test against the independent-null baseline:
+    # P(d_0bk < 0) = 0.5, P(d_2bk >= 0) = 0.5, joint = 0.25.
+    # Tests whether the observed count of ROIs with the precise-activation
+    # pattern exceeds what would arise by chance.
+    try:
+        from scipy.stats import binomtest
+        binom_p = float(
+            binomtest(efficiency_rois, total_rois, p=0.25,
+                      alternative='greater').pvalue
+        )
+    except Exception:
+        # scipy < 1.7 fallback
+        from scipy.stats import binom_test as _bt
+        binom_p = float(_bt(efficiency_rois, total_rois, p=0.25,
+                            alternative='greater'))
+
     results['summary'] = {
         'rois_showing_efficiency_pattern': efficiency_rois,
         'total_rois': total_rois,
-        'proportion': efficiency_rois / total_rois if total_rois > 0 else 0
+        'proportion': efficiency_rois / total_rois if total_rois > 0 else 0,
+        'binomial_test_vs_null_p025': {
+            'p_value': binom_p,
+            'null_probability': 0.25,
+            'alternative': 'greater',
+            'interpretation': 'P(≥k ROIs showing pattern | independent null)',
+        },
     }
-    
-    results['conclusion'] = 'Supported' if efficiency_rois > total_rois / 2 else 'Partially supported'
+
+    results['conclusion'] = ('Supported' if binom_p < 0.05
+                             else 'Partially supported')
     
     return results
 

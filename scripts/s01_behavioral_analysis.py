@@ -236,35 +236,55 @@ def run_statistical_tests(df):
     
     Returns dict with all statistical results.
     """
+    # Shared Cohen's d helpers (paired d_z for within-subject contrasts,
+    # pooled-n d for independent group contrasts). Kept identical to
+    # scripts/s05_statistical_analysis.py so s01 and s05 report the same d
+    # values for the same contrast (fixes a prior inconsistency where s01
+    # used stacked-SD for paired d and averaged-variance for independent d).
+    def _cohens_d_paired(diff_series):
+        diff = np.asarray(diff_series, dtype=float)
+        return float(np.mean(diff) / np.std(diff, ddof=1))
+
+    def _cohens_d_indep(g1, g2):
+        g1 = np.asarray(g1, dtype=float)
+        g2 = np.asarray(g2, dtype=float)
+        n1, n2 = len(g1), len(g2)
+        v1 = np.var(g1, ddof=1)
+        v2 = np.var(g2, ddof=1)
+        pooled_std = np.sqrt(((n1 - 1) * v1 + (n2 - 1) * v2) / (n1 + n2 - 2))
+        return float((np.mean(g1) - np.mean(g2)) / pooled_std)
+
     results = {}
-    
+
     # 1. Load effect on accuracy (paired t-test)
     # Get valid pairs (both conditions have data)
     acc_valid = df[['acc_0bk', 'acc_2bk']].dropna()
     t_acc, p_acc = ttest_rel(acc_valid['acc_0bk'], acc_valid['acc_2bk'])
-    d_acc = (acc_valid['acc_0bk'].mean() - acc_valid['acc_2bk'].mean()) / acc_valid[['acc_0bk', 'acc_2bk']].stack().std()
-    
+    d_acc = _cohens_d_paired(acc_valid['acc_0bk'] - acc_valid['acc_2bk'])
+
     results['load_effect_accuracy'] = {
         'test': 'paired_t_test',
         't_statistic': float(t_acc),
         'p_value': float(p_acc),
         'cohens_d': float(d_acc),
+        'cohens_d_formula': 'paired_dz (mean_diff / SD_diff, ddof=1)',
         'mean_0bk': float(acc_valid['acc_0bk'].mean()),
         'mean_2bk': float(acc_valid['acc_2bk'].mean()),
         'n_pairs': len(acc_valid),
         'interpretation': 'significant' if p_acc < 0.05 else 'not_significant'
     }
-    
+
     # 2. Load effect on RT
     rt_valid = df[['rt_0bk', 'rt_2bk']].dropna()
     t_rt, p_rt = ttest_rel(rt_valid['rt_0bk'], rt_valid['rt_2bk'])
-    d_rt = (rt_valid['rt_2bk'].mean() - rt_valid['rt_0bk'].mean()) / rt_valid[['rt_0bk', 'rt_2bk']].stack().std()
-    
+    d_rt = _cohens_d_paired(rt_valid['rt_2bk'] - rt_valid['rt_0bk'])
+
     results['load_effect_rt'] = {
         'test': 'paired_t_test',
         't_statistic': float(t_rt),
         'p_value': float(p_rt),
         'cohens_d': float(d_rt),
+        'cohens_d_formula': 'paired_dz (mean_diff / SD_diff, ddof=1)',
         'mean_0bk': float(rt_valid['rt_0bk'].mean()),
         'mean_2bk': float(rt_valid['rt_2bk'].mean()),
         'n_pairs': len(rt_valid),
@@ -287,17 +307,19 @@ def run_statistical_tests(df):
     low_eff = df[df['efficiency_group'] == 'Low_Efficiency']
     
     for metric in ['acc_2bk', 'rt_2bk', 'acc_cost', 'rt_cost']:
-        t, p = ttest_ind(high_eff[metric].dropna(), low_eff[metric].dropna())
-        pooled_std = np.sqrt((high_eff[metric].var() + low_eff[metric].var()) / 2)
-        d = (high_eff[metric].mean() - low_eff[metric].mean()) / pooled_std
-        
+        hi = high_eff[metric].dropna()
+        lo = low_eff[metric].dropna()
+        t, p = ttest_ind(hi, lo)
+        d = _cohens_d_indep(hi.values, lo.values)
+
         results[f'group_comparison_{metric}'] = {
             'test': 'independent_t_test',
             't_statistic': float(t),
             'p_value': float(p),
             'cohens_d': float(d),
-            'mean_high_eff': float(high_eff[metric].mean()),
-            'mean_low_eff': float(low_eff[metric].mean())
+            'cohens_d_formula': 'pooled_n ((n1-1)v1 + (n2-1)v2)/(n1+n2-2)',
+            'mean_high_eff': float(hi.mean()),
+            'mean_low_eff': float(lo.mean())
         }
     
     return results

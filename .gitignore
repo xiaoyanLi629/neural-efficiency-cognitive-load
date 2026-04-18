@@ -40,9 +40,20 @@ env/
 logs/
 *.log
 
-# Results (large data files - keep structure but ignore data)
-results/run_*/
+# Results (all regenerable from scripts + HCP data; not tracked)
+results/
 !results/.gitkeep
+
+# Archived CogSci version (not for public release)
+manuscript/
+
+# Intermediate LaTeX build artefacts
+IEEE_manuscript/*.aux
+IEEE_manuscript/*.log
+IEEE_manuscript/*.out
+IEEE_manuscript/*.toc
+IEEE_manuscript/*.bbl
+IEEE_manuscript/*.blg
 
 # OS files
 .DS_Store
@@ -60,6 +71,9 @@ data/
 *.mat
 *.h5
 *.hdf5
+
+# Sensitive files (contains credentials)
+PROJECT_STATUS.md
 
 # Temporary files
 *.tmp

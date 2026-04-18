@@ -1,8 +1,6 @@
-# Neural Efficiency Under Cognitive Load
+# Network Stability as the Hallmark of Neural Efficiency Under Cognitive Load
 
-**CogSci 2026 Submission**
-
-*"Why Some Minds Work Smarter, Not Harder"*
+Analysis pipeline and LaTeX source for the IEEE BIBM 2026 manuscript.
 
 ---
 
@@ -29,7 +27,7 @@ This project investigates how cognitive load modulates neural efficiency during 
 ## Data
 
 - **Source**: Human Connectome Project (HCP) S1200
-- **Subjects**: 20 participants
+- **Subjects**: 200 participants
 - **Task**: N-back Working Memory Task (0-back vs 2-back)
 - **Modality**: Task fMRI (tfMRI_WM)
 
@@ -37,8 +35,7 @@ This project investigates how cognitive load modulates neural efficiency during 
 
 ```
 project_1/
-├── PROJECT_DOCUMENTATION.md    # Complete project documentation (详细文档)
-├── MANUSCRIPT_COGSCI2026.md    # Draft manuscript for CogSci 2026
+├── IEEE_manuscript/            # IEEE BIBM 2026 LaTeX source + compiled PDF
 ├── README.md                   # This file
 ├── configs/
 │   ├── config.py               # Paths, parameters, ROI definitions
@@ -177,17 +174,11 @@ The project includes advanced machine learning analysis for efficiency group cla
 
 ## Documentation
 
-For detailed methodology, formulas, and figure explanations, see:
-- **[PROJECT_DOCUMENTATION.md](PROJECT_DOCUMENTATION.md)** - Complete technical documentation (中英文)
-- **[MANUSCRIPT_COGSCI2026.md](MANUSCRIPT_COGSCI2026.md)** - Draft manuscript
+For detailed methodology, formulas, and figure explanations, see the manuscript PDF and `.tex` source in `IEEE_manuscript/`.
 
 ## Citation
 
-```
-[Author]. (2026). Neural Efficiency Under Cognitive Load: 
-Why Some Minds Work Smarter, Not Harder. 
-Proceedings of the Annual Meeting of the Cognitive Science Society.
-```
+Citation details will be provided upon acceptance.
 
 ## License
 

@@ -14,14 +14,19 @@
 本脚本验证 H3 和 H4
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import numpy as np
 import pandas as pd
 from scipy import stats
 import statsmodels.api as sm
-from pathlib import Path
 import json
 import warnings
 warnings.filterwarnings('ignore')
+
+from configs import config
 
 # =============================================================================
 # 数据加载
@@ -29,9 +34,9 @@ warnings.filterwarnings('ignore')
 
 def get_latest_run_path():
     """Get the path to the latest run directory."""
-    results_dir = Path('/root/autodl-fs/CogSci/project_1/results')
+    results_dir = config.PROJECT_DIR / 'results'
     latest_link = results_dir / 'latest'
-    
+
     if latest_link.exists():
         return latest_link.resolve() if latest_link.is_symlink() else latest_link
     else:
@@ -409,7 +414,7 @@ def main():
     summary = summarize_results(delta_stats, h3_results, h4_results)
     
     # 保存结果
-    output_dir = Path('/root/autodl-fs/CogSci/project_1/results/delta_efficiency')
+    output_dir = config.DELTA_EFFICIENCY_DIR
     output_dir.mkdir(parents=True, exist_ok=True)
     
     def convert_to_serializable(obj):

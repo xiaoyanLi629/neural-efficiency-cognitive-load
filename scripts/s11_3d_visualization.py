@@ -43,9 +43,9 @@ plt.rcParams['axes.unicode_minus'] = False
 # PATH CONFIGURATION
 # =============================================================================
 
-PROJECT_ROOT = Path("/root/autodl-fs/CogSci")
+PROJECT_ROOT = Path(__file__).parent.parent
 DATA_ROOT = PROJECT_ROOT / "data"
-OUTPUT_DIR = PROJECT_ROOT / "project_1" / "results" / "3d_visualization"
+OUTPUT_DIR = PROJECT_ROOT / "results" / "3d_visualization"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Default subject
