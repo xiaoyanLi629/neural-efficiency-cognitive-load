@@ -8,19 +8,19 @@ Automatically obtains S3 credentials from BALSA (balsa.wustl.edu).
 
 Usage:
     # Download 200 subjects (default)
-    python tools/download_hcp.py --output /autodl-fs/data/hcp
+    python tools/download_hcp.py --output ./data
 
     # Download specific number of subjects
-    python tools/download_hcp.py --n-subjects 10 --output /autodl-fs/data/hcp
+    python tools/download_hcp.py --n-subjects 10 --output ./data
 
     # Dry run
-    python tools/download_hcp.py --n-subjects 5 --output /autodl-fs/data/hcp --dry-run
+    python tools/download_hcp.py --n-subjects 5 --output ./data --dry-run
 
     # Resume interrupted download (skips existing files)
-    python tools/download_hcp.py --output /autodl-fs/data/hcp
+    python tools/download_hcp.py --output ./data
 
     # Provide credentials manually (skip BALSA login)
-    HCP_AWS_KEY=xxx HCP_AWS_SECRET=yyy python tools/download_hcp.py --output /autodl-fs/data/hcp
+    HCP_AWS_KEY=xxx HCP_AWS_SECRET=yyy python tools/download_hcp.py --output ./data
 """
 
 import os

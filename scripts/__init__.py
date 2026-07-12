@@ -1,5 +1,5 @@
 """
 Neural Efficiency Analysis Scripts
-CogSci 2026 Project
+IEEE BIBM 2026 Project
 """
 

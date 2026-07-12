@@ -1,4 +1,4 @@
-# Neural Efficiency Analysis - CogSci 2026
+# Network Stability as the Hallmark of Neural Efficiency - IEEE BIBM 2026
 # Required dependencies
 
 # Core scientific computing

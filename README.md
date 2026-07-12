@@ -12,8 +12,7 @@ This project investigates how cognitive load modulates neural efficiency during 
 
 - **Neural efficiency = Network Stability**: Efficient brains maintain stable network organization under cognitive load
 - **Compensatory Reorganization**: Less efficient brains undergo larger network reorganization to cope with increased demands
-- **All 4 hypotheses supported** by experimental results
-- **AI/ML validation**: Machine learning classifiers achieve up to 70% accuracy in distinguishing efficiency groups
+- **AI/ML validation**: with N=200, classifiers perform **at or near chance** (36-58%), and **no classifier survives FDR correction**. This matches the Bayes ceiling (~56%) implied by the observed effect size, and is reported as such in the manuscript.
 
 ## Research Hypotheses
 
@@ -121,20 +120,29 @@ The project includes advanced machine learning analysis for efficiency group cla
 
 ### Classification Results
 
+Neural features only (144 features, N=200, StratifiedKFold k=5).
+Source: `results/latest/efficiency/ai_classification_results.json`.
+
 | Model | Accuracy | AUC |
 |-------|----------|-----|
-| Gradient Boosting | 70.0% | 0.630 |
-| Logistic Regression | 65.0% | 0.660 |
-| Random Forest | 60.0% | 0.555 |
-| SVM (RBF) | 50.0% | 0.620 |
-| MLP | 45.0% | 0.530 |
+| Random Forest | 56.0% | 0.565 |
+| SVM (RBF) | 56.0% | 0.534 |
+| Logistic Regression | 51.5% | 0.507 |
+| MLP Neural Network | 51.5% | 0.475 |
+| Gradient Boosting | 51.0% | 0.538 |
+| Feature Attention Network | 40.0% | - |
+| Graph Attention Network (real 14x14 FC) | 50.0% | - |
 
-### Top Important Features
-1. IES 2-back (Inverse Efficiency Score) - 0.052
-2. Accuracy cost (behavioral load effect) - 0.038
-3. Angular_R activation (0-back) - 0.037
-4. Modularity (2-back condition) - 0.030
-5. ACC_L activation (0-back) - 0.024
+**All at or near chance. No classifier survives FDR correction.**
+
+### Leakage check
+Classifying from the behavioral IES alone reaches 83% - but IES is the very
+variable used to *define* the efficiency groups, so that number is circular and
+is NOT evidence of a neural signature. From neural features alone the ceiling is
+~51%. This check is why the manuscript reports a null rather than a classifier.
+
+> NOTE: an earlier version of this README reported 70% accuracy. Those numbers
+> came from the rejected CogSci run with N=20 and do not replicate at N=200.
 
 ## Key Figures
 
@@ -186,5 +194,5 @@ This project is for academic research purposes.
 
 ---
 
-*Last Updated: January 2026*
-*Results Directory: run_20260103_105523*
+*Last Updated: 2026-07*
+*Results Directory: run_20260415_122619 (N=200, )*
