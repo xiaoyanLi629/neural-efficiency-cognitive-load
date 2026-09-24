@@ -1,0 +1,382 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{url}
+\usepackage{multirow}
+
+\begin{document}
+
+\title{Network Stability as the Hallmark of Neural Efficiency Under Cognitive Load}
+
+\author{%
+\IEEEauthorblockN{Xiaoyan Li}
+\IEEEauthorblockA{\textit{Dept.\ of Computational Mathematics,} \\
+\textit{Science and Engineering} \\
+\textit{Michigan State University}\\
+East Lansing, MI, USA \\
+lixiaoy5@msu.edu}
+\and
+\IEEEauthorblockN{Cuicui Jiang}
+\IEEEauthorblockA{\textit{College of Computer Science} \\
+\textit{Inner Mongolia University}\\
+Hohhot, China \\
+jiangcuicui@mail.imu.edu.cn}
+\and
+\IEEEauthorblockN{Yujia Du}
+\IEEEauthorblockA{\textit{Suzhou MetaCortex Intelligence} \\
+\textit{Technology Co., Ltd.}\\
+Suzhou, China \\
+saroyi@163.com}
+\and
+\IEEEauthorblockN{Jiaxuan Wei}
+\IEEEauthorblockA{\textit{School of Artificial Intelligence} \\
+\textit{Taiyuan University of Technology}\\
+Jinzhong, China \\
+2023002323@link.tyut.edu.cn}
+\and
+\IEEEauthorblockN{Xingyue Liu}
+\IEEEauthorblockA{\textit{School of Artificial Intelligence} \\
+\textit{Taiyuan University of Technology}\\
+Jinzhong, China \\
+2023002320@link.tyut.edu.cn}
+\and
+\IEEEauthorblockN{Jiaoping Chen}
+\IEEEauthorblockA{\textit{Merrick School of Business} \\
+\textit{University of Baltimore}\\
+Baltimore, MD, USA \\
+jchen@ubalt.edu}
+}
+
+\maketitle
+
+\begin{abstract}
+What distinguishes neurally efficient individuals: flexible task-time reorganization or a stable, pre-optimized architecture? Using N-back working-memory task fMRI from 200 HCP participants, we integrate behavioral, activation, graph-theoretic, and machine-learning analyses. Cognitive load robustly impairs performance ($p<10^{-20}$). Seven of 14 working-memory ROIs show a \emph{precise-activation} trend (lower activation at low load, parity under high load), but the count is not significant once ROI dependence is respected (permutation $p=0.094$). Network organization is stable under load in both efficiency groups: $\Delta$ modularity does not differ between groups in 11 of 12 graph constructions. High-efficiency individuals show slightly higher whole-run modularity at the original threshold ($d=0.31$, $p=0.03$), but this gap is not robust: it disappears when graph density is matched or weighted and data-driven partitions are used. Because groups are defined by a median split of behavioral efficiency, a leakage audit shows that behavioral features alone yield 81--89\% accuracy. With them excluded, five traditional classifiers, an attention MLP, and a Graph Attention Network perform at or near chance (36--58\%; none survives FDR correction), and ridge regression on continuous efficiency scores explains no out-of-sample variance. Neural efficiency thus coincides with stable network organization under load, but group-level network differences are small, construction-dependent, and far from individually predictive. Code and data tables: \url{https://github.com/xiaoyanLi629/neural-efficiency-cognitive-load}.
+\end{abstract}
+
+\begin{IEEEkeywords}
+neural efficiency, cognitive load, working memory, fMRI, functional connectivity, graph theory, machine learning, graph neural network
+\end{IEEEkeywords}
+
+\section{Introduction}
+
+Why some individuals process information more efficiently than others is a central question in cognitive neuroscience~\cite{deary2010neuroscience}. The Neural Efficiency Hypothesis holds that capable individuals need fewer neural resources for equal or better performance. Early PET evidence demonstrated lower metabolic rates in higher-ability individuals during cognitive tasks~\cite{haier1988cortical}, and subsequent fMRI research has consistently reported that efficiency manifests as reduced or more focal activation~\cite{neubauer2009intelligence}, particularly within the frontoparietal network during working memory tasks~\cite{rottschy2012modelling}.
+
+Focusing solely on activation magnitude, however, provides an incomplete picture. Advances in network neuroscience suggest that the topology of functional brain networks may be equally or more critical than regional activation levels~\cite{bassett2017network,bullmore2012economy}. Graph-theoretical work indicates that optimized network topology---an appropriate balance between integration and segregation---is a hallmark of efficient cognitive processing~\cite{sporns2016modular}. A growing body of evidence suggests that higher cognitive ability is associated with \emph{more stable} network configurations across states~\cite{shine2016dynamics,schultz2016higher}. Task-state networks are also known to be shaped mainly by a stable intrinsic architecture, with only modest task-evoked changes~\cite{cole2014intrinsic,cole2021functional}, and by stable individual-specific factors~\cite{gratton2018functional}. These findings converge on a critical question: does neural efficiency stem from dynamic reorganization, or from maintaining a stable, pre-optimized architecture under load?
+
+We address this question with the N-back working-memory task~\cite{baddeley2012working,owen2005n}, using task fMRI from 200 HCP participants~\cite{van2013wu,barch2013function}, and integrate behavioral, regional activation, connectivity, and machine learning analyses.
+
+We propose a \textbf{network stability} framework and test four hypotheses:
+\begin{itemize}
+  \item \textbf{H1}---Cognitive load impairs behavioral performance;
+  \item \textbf{H2}---High-efficiency individuals show precise, targeted activation rather than globally reduced activity;
+  \item \textbf{H3}---Functional networks remain stable across cognitive load levels, with minimal reorganization reflecting pre-optimized configurations;
+  \item \textbf{H4}---High-efficiency individuals possess a superior baseline network organization that is maintained under load, rather than relying on acute compensatory reorganization.
+\end{itemize}
+We find clear support for H1 and H3, a non-significant trend for H2, and no robust support for H4 once graph construction is varied. Methodologically, we compare interpretable graph features with an end-to-end Graph Attention Network (GAT) and audit how target leakage inflates classification accuracy in median-split designs.
+
+\section{Related Work}
+
+\subsection{Neural Efficiency and Brain Networks}
+Most studies of neural efficiency have examined \emph{regional activation magnitude}~\cite{haier1988cortical,neubauer2009intelligence}. Graph measures such as efficiency~\cite{latora2001efficient}, modularity~\cite{newman2006modularity}, and clustering~\cite{rubinov2010complex} quantify the balance between integration and segregation, and modular organization has been linked to cognitive performance~\cite{sporns2016modular,bullmore2012economy}. Network-level extensions of the efficiency hypothesis exist~\cite{schultz2016higher,shine2016dynamics}, but few compare flexibility and stability accounts directly or ask how load-related \emph{change} relates to individual efficiency.
+
+\subsection{Deep Learning on Brain Networks}
+Recent years have seen growing application of Graph Neural Networks (GNNs) to brain connectivity data~\cite{velickovic2017graph}. However, large-scale comparisons indicate that linear models and interpretable features often match deep learning on neuroimaging data~\cite{schulz2020different,he2020deep}. Brain--behavior prediction is further complicated by small effect sizes, which call for large samples~\cite{marek2022reproducible}, and by information loss when continuous scores are dichotomized~\cite{maccallum2002practice}.
+
+\section{Methods}
+
+\subsection{Participants and Data Acquisition}
+We analyzed task fMRI data from 200 healthy young adults (22--35 years) from the HCP Young Adult release; one participant lacks 2-back behavioral data, so paired behavioral tests use $n=199$ (Section~\ref{sec:behav}). Data were acquired at 3T (TR~=~720~ms, 2.0~mm isotropic, multiband 8), processed with the HCP minimal pipelines~\cite{glasser2013minimal} (MSMAll-aligned, S1200 release), and analyzed in CIFTI grayordinate space (91,282 vertices). The HCP cohort contains siblings and twins; family identifiers are part of the HCP Restricted data, which we did not use, so neither the group tests nor the cross-validation folds are family-aware. Section~\ref{sec:limitations} discusses the direction of the resulting bias.
+
+\subsection{N-back Working Memory Task}
+The block-design task contrasts \textbf{0-back} (match a fixed target; low load) with \textbf{2-back} (match the stimulus two trials back; high load). Each of two runs (LR, RL) has 8 task blocks (25\,s, 10 trials) and 4 fixation blocks (15\,s), with faces, places, tools and body parts as stimuli; event timing came from the HCP EV files.
+
+\subsection{Behavioral Metrics and Efficiency Classification}
+\label{sec:behav}
+Performance was quantified by accuracy (ACC), reaction time (RT), the Inverse Efficiency Score $IES=RT/ACC$ (lower is better)~\cite{townsend2014methods}, and load costs $ACC_{cost}=ACC_{0bk}-ACC_{2bk}$ and $RT_{cost}=RT_{2bk}-RT_{0bk}$. All behavioral measures were computed per participant by pooling trials over both phase-encoding runs, so the grouping is defined once per participant rather than within runs. Efficiency was summarized by a composite score,
+\begin{equation}
+4E = z(ACC_{2bk}) - z(RT_{2bk}) - z(ACC_{cost}) - z(RT_{cost}),
+\end{equation}
+where $z(\cdot)$ denotes standardization across participants, and participants were split at the median of $E$ into high- and low-efficiency groups of exactly 100 each. $E$ correlates strongly with $IES_{2bk}$ (Spearman $\rho=-0.83$), and a median split on $IES_{2bk}$ assigns 84\% of participants to the same group. The participant without 2-back behavioral data received mean-imputed components ($E\approx 0$) and was assigned to the low-efficiency group; excluding this participant leaves every group result reported below unchanged in direction and significance. Because the label is derived from behavior, all behavioral variables are excluded from the machine-learning feature set to prevent target leakage (Section~\ref{sec:mlfeatures}).
+
+\subsection{Regional Activation Analysis (GLM)}
+Task activation was estimated using a first-level General Linear Model on 14 working-memory ROIs defined on the Schaefer 2018 100-parcel, 7-network atlas~\cite{schaefer2018local}, spanning frontoparietal control (FPN), salience/ventral attention (SAL), default mode (DMN), and dorsal attention (DAN) networks (Table~\ref{tab:roi}). ROI names are functional shorthands for the Schaefer parcels listed in the table.
+
+For each ROI, the BOLD time series $Y \in \mathbb{R}^{405}$ was modeled as $Y = X \beta + \varepsilon$, where the design matrix $X \in \mathbb{R}^{405 \times 30}$ contained 30 regressors: 8 task regressors (4 stimulus types $\times$ 2 loads), 4 response regressors (correct/error $\times$ 2 loads) HRF-convolved following~\cite{friston1998event}, 12 motion parameters~\cite{friston1996movement}, 5 discrete cosine transform (DCT) regressors for high-pass filtering (128\,s cutoff), and an intercept. Task regressors used the canonical SPM double-gamma HRF. For each ROI, we averaged $\hat{\beta}$ across the four stimulus types within each load condition to obtain $\hat{\beta}_{0bk}$ and $\hat{\beta}_{2bk}$, and computed the load effect $\Delta\hat{\beta}=\hat{\beta}_{2bk}-\hat{\beta}_{0bk}$.
+
+\begin{table}[t]
+\caption{Working-Memory ROIs and Their Schaefer-100 Parcels}
+\label{tab:roi}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Net} & \textbf{ROI} & \textbf{Schaefer-100 parcel(s)} \\
+\midrule
+FPN & DLPFC-L/R & Cont\_PFCl \\
+FPN & PPC-L/R & Cont\_Par \\
+SAL & VLPFC-L/R & SalVentAttn\_FrOper \\
+SAL & ACC-L/R & SalVentAttn\_Med \\
+DAN & Premotor-L/R & DorsAttn\_FEF \\
+DMN & mPFC & Default\_PFC (L+R merged) \\
+DMN & PCC & Default\_pCunPCC (L+R merged) \\
+DMN & Angular-L/R & Default\_Par \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Functional Connectivity and Graph Theory}
+\label{sec:fc}
+Parcel time series were linearly detrended and standardized, and functional connectivity was computed as Fisher-$z$ transformed Pearson correlations,
+\begin{equation}
+z_{ij} = \tanh^{-1}(r_{ij}), \quad r_{ij} = \mathrm{corr}(Y_i, Y_j).
+\end{equation}
+Condition-specific matrices used the concatenated 0-back or 2-back blocks (shifted by 2 TRs and extended by 3 TRs to allow for hemodynamic delay); whole-run matrices used all 405 frames, including fixation. Two node sets were used. The 14 WM ROIs give $14\times14$ matrices that feed the GAT (Section~\ref{sec:mlclf}). Graph metrics were computed on a broader 30-node network built from the Schaefer-100 parcels of six networks (FPN 8, DMN 8, SAL 6, DAN 4, somatomotor 2, visual 2). Following common practice~\cite{rubinov2010complex}, each matrix was binarized at $|z|>0.15$, so strong negative correlations also count as edges. At this threshold the task graphs are dense (mean density 0.91), a point we return to in Section~\ref{sec:robust}. Metrics were computed separately for each run and then averaged over the two runs. 
+
+We computed global efficiency $E_{glob}=\frac{1}{n(n-1)}\sum_{i\neq j}d_{ij}^{-1}$ and local efficiency $E_{loc}$, the mean $E_{glob}$ of each node's neighbor subgraph~\cite{latora2001efficient}, together with modularity~\cite{newman2006modularity}:
+\begin{equation}
+Q = \frac{1}{2m} \sum_{ij} \left[A_{ij} - \frac{k_i k_j}{2m}\right] \delta(c_i, c_j)
+\end{equation}
+where the community labels $c_i$ are fixed to each parcel's a~priori Schaefer network, so $Q$ measures how strongly connectivity respects the canonical network partition. Section~\ref{sec:robust} examines data-driven Louvain partitions as well as alternative graph constructions.
+
+Network stability was quantified by $\Delta M = M_{2bk} - M_{0bk}$, where $|\Delta M|$ near zero indicates minimal reorganization under load (H3). For baseline organization (H4) we report $Q$ for each condition and for the whole run ($Q_{run}$). $Q_{run}$ is computed on a separate whole-run matrix and is not the mean of $Q_{0bk}$ and $Q_{2bk}$.
+
+\subsection{Feature Set for Machine Learning}
+\label{sec:mlfeatures}
+Because the efficiency label is a median split of a behavioral composite, \emph{all eight behavioral variables (ACC, RT, IES for 0bk/2bk, plus ACC and RT load costs) are excluded from the primary feature set} to avoid target leakage. The primary 90-dimensional neural feature vector combines activation features (30: $\hat{\beta}_{0bk}$ and $\hat{\beta}_{2bk}$ for each of 14 ROIs plus the ROI mean) and network features (60): 15 within- and between-network connectivity values among the six networks, and five graph metrics ($E_{glob}$, $E_{loc}$, $Q$, clustering, density), each for 0-back, 2-back, and the whole run. A 98-dimensional variant that adds the eight behavioral variables is kept only as a leakage-sanity comparison (Section~\ref{sec:ml}). All features were standardized to zero mean and unit variance. This label-free transform was fit on the full sample.
+
+\subsection{Machine Learning Classifiers}
+\label{sec:mlclf}
+We evaluated five traditional classifiers and two deep-learning classifiers under 5-fold stratified cross-validation with a fixed random seed: L2 Logistic Regression ($C=0.1$), RBF SVM ($C=1$), Random Forest (100 trees, depth 5), Gradient Boosting (50 estimators, depth 3, learning rate 0.1), an MLP (64-32-16, ReLU, Adam), an attention-based MLP (single-head self-attention over the standardized features), and a Graph Attention Network (GAT)~\cite{velickovic2017graph} that operates directly on subject-specific $14\times14$ FC matrices (Section~\ref{sec:fc}) rather than on the feature vector.
+
+The GAT architecture used two GATConv layers (hidden channels = 16, heads = 2, dropout = 0.3) with global mean pooling and a 2-class classification head. Node features were $(\hat{\beta}_{0bk}, \hat{\beta}_{2bk}, \Delta\hat{\beta})$. Edges were the thresholded FC entries, and standard GAT attention~\cite{velickovic2017graph} weighted each neighbor's contribution. The GAT was trained with Adam (lr~=~0.005, weight decay~=~0.01), cross-entropy loss, and early stopping (patience~=~15, max 100 epochs) on a single GPU.
+
+\subsection{Statistical Analysis}
+Load effects were tested with paired $t$-tests; group differences with Welch's $t$-tests, non-parametric Mann--Whitney $U$ tests, and permutation tests (10{,}000 iterations on group-level comparisons). The ``precise-activation'' ROI pattern ($d_{0bk}<0$ and $d_{2bk}\geq 0$) was evaluated with a one-sided exact binomial test against $p_0=0.25$. Under the null of no group difference, the sign of each group effect is equally likely to be positive or negative, and if the two conditions are treated as independent, the probability of this particular sign combination is $\tfrac{1}{2}\times\tfrac{1}{2}=0.25$. Because ROIs and conditions are in fact correlated, we also ran a label-permutation test on the ROI count (10{,}000 permutations of group labels), which preserves that dependence. We report raw and Benjamini--Hochberg FDR-adjusted significance~\cite{benjamini1995controlling} and Cohen's $d$ with pooled SD. Classifier significance used 200 label permutations under the same stratified CV. To use the continuous information that the median split discards, we also regressed the composite score $E$ and $IES_{2bk}$ on the 90 neural features with ridge regression, choosing the penalty by internal cross-validation within each training fold. Performance is reported as cross-validated $R^2$ over $10\times$ repeated 5-fold CV, with significance from 1{,}000 label permutations.
+
+\section{Results}
+
+\subsection{Behavioral Signature of Cognitive Efficiency (H1)}
+
+Increasing working memory demand from 0-back to 2-back significantly impaired performance in the 199 participants with complete behavioral records. Accuracy declined from $91.9\%$ to $85.5\%$ ($t(198)=10.43$, $p<10^{-20}$, $d=0.74$), and RT slowed from $753$ to $975$~ms ($t(198)=-26.63$, $p<10^{-67}$, $d=1.89$). These robust load effects strongly support H1 (Fig.~\ref{fig:group_comparison}).
+
+By construction, high-efficiency individuals (upper half of the composite $E$) showed higher accuracy and faster RTs under high load, together with smaller load costs in both metrics (Fig.~\ref{fig:group_comparison}); these differences describe the grouping rather than test it.
+
+\begin{figure*}[t]
+\centerline{\includegraphics[width=0.62\textwidth]{fig1.pdf}}
+\caption{Behavioral signatures by efficiency group ($N=200$). (A) 2-back accuracy with raincloud distributions. (B) 2-back reaction time. (C) Load $\times$ Efficiency interaction on accuracy. (D) Accuracy cost ($ACC_{0bk}-ACC_{2bk}$). (E) RT cost ($RT_{2bk}-RT_{0bk}$). (F) Individual trajectories from 0-back to 2-back. High-efficiency individuals consistently maintain superior performance with smaller load costs.}
+\label{fig:group_comparison}
+\end{figure*}
+
+\subsection{Precise Neural Engagement in High-Efficiency Individuals (H2)}
+
+Traditional neural efficiency theory predicts globally reduced activation in efficient brains. Our data show a more nuanced, pattern-level trend that we term \emph{precise activation}. Table~\ref{tab:roi_activation} and Fig.~\ref{fig:activation} show the group comparisons for all 14 ROIs under both load conditions.
+
+\begin{table}[t]
+\caption{ROI Activation: High vs Low Efficiency (Cohen's $d$)}
+\label{tab:roi_activation}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}l c c c@{}}
+\toprule
+\textbf{ROI} & \textbf{$d_{0bk}$} & \textbf{$d_{2bk}$} & \textbf{Precise pattern} \\
+\midrule
+DLPFC-L     & $-0.17$ & $-0.08$ &             \\
+DLPFC-R     & $-0.21$ & $-0.05$ &             \\
+VLPFC-L     & $-0.33^{*}$ & $+0.06$ & \checkmark \\
+VLPFC-R     & $-0.21$ & $+0.10$ & \checkmark \\
+PPC-L       & $-0.21$ & $+0.00$ & \checkmark \\
+PPC-R       & $-0.10$ & $+0.06$ & \checkmark \\
+ACC-L       & $-0.23$ & $+0.02$ & \checkmark \\
+ACC-R       & $-0.19$ & $+0.06$ & \checkmark \\
+Premotor-L  & $-0.24$ & $-0.06$ &             \\
+Premotor-R  & $-0.22$ & $+0.04$ & \checkmark \\
+mPFC        & $-0.19$ & $-0.00$ &             \\
+PCC         & $-0.12$ & $-0.06$ &             \\
+Angular-L   & $-0.28$ & $-0.04$ &             \\
+Angular-R   & $-0.18$ & $-0.01$ &             \\
+\bottomrule
+\end{tabular}
+\vspace{0.2em}
+
+\scriptsize \textit{Note.} $^{*}p<0.05$ uncorrected; no ROI test survives BH-FDR across the 28 ROI $\times$ condition tests ($p_{\mathrm{FDR}}\geq 0.49$). \checkmark: $d_{0bk}<0$ and $d_{2bk}\geq 0$ (7/14 ROIs; binomial $p=0.038$, label-permutation $p=0.094$).
+\end{table}
+
+Across 14 ROIs, 7 exhibited the precise-activation pattern: lower activation in high-efficiency individuals at low load, converging with (or slightly exceeding) low-efficiency individuals at high load. This count exceeds the independent-null expectation (binomial $p=0.038$), but a label-permutation test that respects the correlation among ROIs does not reach significance ($p=0.094$; null mean $2.1\pm2.7$ ROIs). No single ROI survives FDR correction either. The largest single effect, left VLPFC at 0-back ($t=-2.33$, raw $p=0.02$, $d=-0.33$), does not survive correction across the 28 ROI-by-condition tests. We therefore treat precise activation as a pattern-level trend rather than an established regional result. The seven ROIs that show it lie in the FPN (PPC-L/R), SAL (VLPFC-L/R, ACC-L/R) and DAN (Premotor-R), which fits \emph{context-appropriate engagement} better than uniformly reduced activity (Fig.~\ref{fig:activation}).
+
+\begin{figure}[t]
+\centerline{\includegraphics[width=0.95\linewidth]{fig2.pdf}}
+\caption{Group effect sizes (high $-$ low efficiency, Cohen's $d$) for each ROI at 0-back and 2-back. The seven ROIs with the precise-activation pattern ($d_{0bk}<0$, $d_{2bk}\geq 0$) are highlighted; the other seven are shown in grey. The dashed line marks $d=0$. Almost all ROIs move from lower activation in the high-efficiency group at low load toward parity at high load, but no single ROI survives FDR correction.}
+\label{fig:activation}
+\end{figure}
+
+\subsection{Network Stability and Baseline Modularity (H3, H4)}
+
+We examined two complementary aspects of network organization: its \emph{stability} across load conditions, and the \emph{baseline quality} of that organization. 
+
+\textbf{Universal network stability (H3).} Both efficiency groups showed minimal reorganization under load. The change in modularity from 0-back to 2-back was nearly identical in magnitude and direction for both groups ($\Delta Q_{high}=-0.00142$, $\Delta Q_{low}=-0.00142$; group difference $t=-0.01$, $p=0.99$, $d=-0.00$). Global efficiency, local efficiency and mean connectivity also changed little, with no significant group difference ($\Delta E_{glob}$: $d=-0.19$, $p=0.18$; $\Delta E_{loc}$: $d=-0.18$, $p=0.21$; $\Delta$ mean connectivity: $d=-0.25$, $p=0.08$). The mean change ($-0.0014$) is small relative to the between-subject SD of $Q_{run}$ (0.0065), although it is reliably non-zero across the sample ($p=0.001$). This supports H3: functional organization changes little with load, irrespective of individual ability.
+
+\textbf{Baseline modularity gap (H4).} At the original graph construction, high-efficiency individuals showed higher whole-run modularity ($Q_{run}$: $t=2.19$, $p=0.030$, $d=0.31$; permutation $p=0.029$; Mann--Whitney $p=0.019$), although it does not survive BH-FDR across the 15 network metrics tested ($p_{\mathrm{FDR}}\geq0.31$). The condition-specific values point the same way but are individually non-significant ($Q_{0bk}$: $d=0.19$, $p=0.19$; $Q_{2bk}$: $d=0.21$, $p=0.15$; their mean: $d=0.23$, $p=0.11$), and the two group trajectories run nearly parallel under load (Fig.~\ref{fig:gap_reversal}A). Taken at face value this is a ``gap maintenance'' pattern, but the next subsection shows that it does not survive reasonable changes to the graph construction.
+
+
+
+\begin{figure*}[t]
+\centerline{\includegraphics[width=0.8\textwidth]{fig3.pdf}}
+\caption{Network stability under load. (A) Modularity trajectories from 0-back to 2-back: both groups stay nearly flat, and the high-efficiency group (blue) stays above the low-efficiency group (red). (B) Whole-run modularity $Q_{run}$ by group at the original construction ($t=2.19$, $p=0.03$, $d=0.31$); values are near zero because the graphs are dense, and the difference is not robust (Table~\ref{tab:robust}). (C) Distributions of $\Delta$ modularity: both groups show nearly identical, minimal change (universal stability).}
+\label{fig:gap_reversal}
+\end{figure*}
+
+A multivariate view of $|\Delta|$ across five network metrics gives the same picture: the high- and low-efficiency profiles overlap almost completely.
+
+\subsection{Robustness to Graph Construction}
+\label{sec:robust}
+Because modularity is sensitive to how graphs are built, we recomputed all metrics from the saved parcel-level FC under 12 constructions (Table~\ref{tab:robust}). Two results emerge. First, stability (H3) is robust: the group difference in $\Delta Q$ is non-significant in 11 of 12 constructions (the exception, 30\% density, gives $p=0.01$). Second, the baseline gap (H4) is not. Its direction (high $>$ low) is the same in all 12 constructions, but it is significant only within a narrow band of absolute thresholds (0.15--0.20 in Table~\ref{tab:robust}; roughly 0.14--0.24, with gaps, in a finer 0.01-step sweep). It vanishes when density is fixed ($d\leq0.12$), with weighted graphs, and with Louvain partitions. The reason is visible in the original construction. At $|z|>0.15$ the graphs are nearly complete (density 0.91), $Q_{run}$ is close to zero for everyone (mean $-0.021$), and $Q_{run}$ correlates with density ($r=-0.58$), which is slightly lower in the high-efficiency group (0.905 vs.\ 0.920, $p=0.11$). The apparent modularity gap is therefore better explained as a small density difference than as a better-partitioned network, and we do not consider H4 supported.
+
+\begin{table}[t]
+\caption{Robustness of Modularity Results to Graph Construction}
+\label{tab:robust}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}l c c c@{}}
+\toprule
+\textbf{Construction} & \textbf{$Q_{run}$: $d$ ($p$)} & \textbf{$\bar{Q}_{cond}$: $d$ ($p$)} & \textbf{$\Delta Q$: $p$} \\
+\midrule
+$|z|>0.15$, binary (original) & $0.31$ ($0.030$) & $0.23$ ($0.11$) & $0.99$ \\
+$|z|>0.05$                    & $0.13$ ($0.38$)  & $0.21$ ($0.14$) & $0.41$ \\
+$|z|>0.10$                    & $0.20$ ($0.16$)  & $0.26$ ($0.07$) & $0.37$ \\
+$|z|>0.20$                    & $0.28$ ($0.049$) & $0.17$ ($0.22$) & $0.50$ \\
+$|z|>0.25$                    & $0.25$ ($0.08$)  & $0.20$ ($0.16$) & $0.53$ \\
+$z>0.15$ (positive only)      & $0.31$ ($0.029$) & $0.21$ ($0.14$) & $0.78$ \\
+Density 20\%                  & $0.03$ ($0.86$)  & $0.13$ ($0.36$) & $0.12$ \\
+Density 30\%                  & $0.12$ ($0.39$)  & $0.16$ ($0.26$) & $0.01$ \\
+Density 40\%                  & $0.09$ ($0.51$)  & $0.13$ ($0.37$) & $0.43$ \\
+Weighted (positive)           & $0.17$ ($0.22$)  & $0.15$ ($0.28$) & $0.21$ \\
+$|z|>0.15$, Louvain           & $0.25$ ($0.08$)  & $0.18$ ($0.21$) & $0.08$ \\
+Weighted, Louvain             & $0.18$ ($0.20$)  & $0.20$ ($0.16$) & $0.18$ \\
+\bottomrule
+\end{tabular}
+\vspace{0.2em}
+
+\scriptsize \textit{Note.} $d$: high $-$ low efficiency, Welch's $t$-test. $\bar{Q}_{cond}=(Q_{0bk}+Q_{2bk})/2$. All rows except Louvain use the a~priori Schaefer partition; Louvain values are averaged over 20 seeds. Metrics are computed per run and averaged over runs.
+\end{table}
+
+\subsection{Machine Learning Classification of Efficiency Groups}
+\label{sec:ml}
+
+We asked whether the multi-level neural patterns summarised above are strong enough to support \emph{individual-level prediction} of efficiency group membership when the classifier has access only to neural features. Five traditional classifiers, an attention-based MLP, and a Graph Attention Network (GAT) were trained on the 90-dimensional neural feature set under 5-fold stratified cross-validation (Table~\ref{tab:ml}).
+
+\textbf{Neural features alone do not robustly support above-chance classification.} The best model, Random Forest, reached 58.0\% with a raw permutation $p=0.03$, but this does not survive Benjamini--Hochberg correction across the five classifiers ($p_{\mathrm{FDR}}=0.15$). Its accuracy sits 1.9 SD above the centre of its own permutation null ($0.497\pm0.044$; Table~\ref{tab:ml}). The other four traditional models performed near chance (51.0--53.5\%, all $p\geq 0.20$). The attention-based MLP (35.5\%) and the GAT operating directly on real $14\times 14$ FC matrices with $(\hat{\beta}_{0bk}, \hat{\beta}_{2bk}, \Delta\hat{\beta})$ node features (50.0\%) also failed to exceed chance.
+
+\textbf{Continuous prediction.} Median splits discard information~\cite{maccallum2002practice}, so we also regressed the continuous scores on the same 90 features. Ridge regression explained no out-of-sample variance in either the composite score $E$ (cross-validated $R^2=-0.034\pm0.045$, permutation $p=0.73$) or $IES_{2bk}$ ($R^2=-0.052\pm0.092$, $p=0.42$). The null result is therefore not an artefact of dichotomization. The neural signal that is detectable as a group mean difference is too weak to predict individuals at $N=200$.
+
+For intuition about the size of the effect, two equal-variance Gaussian groups separated by $d=0.31$ on a \emph{single} feature allow at most $\Phi(d/2)\approx 56\%$ accuracy. This is only an illustrative reference for the modularity effect, not a ceiling for a 90-feature classifier or a GAT, because many weak and partly independent signals can add up to larger multivariate separability. The empirical classifiers and the ridge models show that, in these data, such aggregation did not happen.
+
+\begin{table}[t]
+\caption{Classification of Efficiency Group (5-fold stratified CV) and Leakage Audit}
+\label{tab:ml}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}l c c c c@{}}
+\toprule
+\textbf{Model} & \textbf{Acc.} & \textbf{AUC} & \textbf{Null mean$\pm$SD} & \textbf{Perm.\ $p$} \\
+\midrule
+Random Forest             & 0.580 & 0.586 & 0.497$\pm$0.044 & 0.030 \\
+SVM (RBF)                 & 0.535 & 0.527 & 0.495$\pm$0.049 & 0.199 \\
+Gradient Boosting         & 0.525 & 0.548 & 0.496$\pm$0.041 & 0.244 \\
+Logistic Regression       & 0.515 & 0.502 & 0.500$\pm$0.045 & 0.408 \\
+MLP (64-32-16)            & 0.510 & 0.538 & 0.499$\pm$0.024 & 0.333 \\
+\midrule
+Attention-based MLP       & 0.355 & --    & -- & n.s. \\
+Graph Attention Network   & 0.500 & --    & -- & n.s. \\
+\midrule
+\multicolumn{5}{@{}l}{\textit{Leakage audit (LR / GBM accuracy):}} \\
+\multicolumn{3}{@{}l}{Neural only (90 features)} & \multicolumn{2}{c}{0.515 / 0.525} \\
+\multicolumn{3}{@{}l}{$IES_{2bk}$ alone (label proxy)} & \multicolumn{2}{c}{0.830 / 0.810} \\
+\multicolumn{3}{@{}l}{All 98 features (incl.\ behavioral)} & \multicolumn{2}{c}{0.875 / 0.890} \\
+\bottomrule
+\end{tabular}
+\vspace{0.25em}
+
+\scriptsize \textit{Note.} 90 neural features; behavioral variables excluded to prevent target leakage. The null distribution comes from 200 label permutations under the same stratified CV. GAT uses real $14\times 14$ FC matrices with $(\hat{\beta}_{0bk},\hat{\beta}_{2bk},\Delta\hat{\beta})$ node features. Random Forest's raw $p=0.030$ does not survive BH-FDR across the 5 classifiers ($p_{\mathrm{FDR}}=0.15$).
+\end{table}
+
+
+
+\textbf{Leakage sanity check.} In median-split designs the group label is usually derived from the same behavioral scores that are then offered to the classifier. To show how much this inflates accuracy, we repeated the Logistic Regression and Gradient Boosting pipelines under three feature sets (Table~\ref{tab:ml}, bottom). $IES_{2bk}$ is a close proxy of the label-defining composite (84\% agreement between the two median splits), and on its own it already reaches 81--83\%. The eight behavioral variables, from which the composite is built, together with the neural features reach 87--89\%. Removing the behavioral variables drops accuracy to chance, so virtually all of the apparent predictive power comes from the variables that define the label, not from the brain. High accuracies in designs of this kind therefore cannot be read as evidence for a brain-based individual classifier; the classifier is simply re-deriving the group boundary from its own ingredients.
+
+
+
+
+\section{Discussion}
+
+\subsection{Stability Is Universal; the Baseline Gap Is Not Robust}
+
+What distinguishes efficient from inefficient cognition at the network level? The clearest result is negative. Both efficiency groups showed nearly identical, minimal change in modularity from 0-back to 2-back, and this held in 11 of 12 graph constructions. We found no evidence that low-efficiency individuals ``try harder'' by reorganizing their networks under load. This agrees with evidence that task-state networks are dominated by a stable intrinsic architecture~\cite{cole2014intrinsic,cole2021functional} and by stable individual-specific factors~\cite{gratton2018functional}. The positive claim that we set out to test, and that our original analysis appeared to support, is that high-efficiency individuals carry a better-partitioned baseline network into the task. The robustness analysis does not bear this out. The whole-run modularity gap ($d=0.31$) keeps its direction across constructions, but it is significant only in a narrow threshold band where graphs are nearly complete and $Q$ is close to zero, and it disappears once density is matched. We therefore regard the ``gap maintenance'' account as an open hypothesis rather than a finding.
+
+\subsection{Sample-Level Effects vs.\ Individual-Level Prediction}
+
+A methodological lesson of broader interest to biomedical informatics is the \emph{separation between sample-level detectability and individual-level predictability}. Traditional ML, attention MLP and GAT on real FC all failed to separate the groups from neural features alone: the best accuracy was 58.0\%, with raw $p=0.03$ that does not survive FDR. Ridge regression on the continuous scores did no better. This is not a failure of a particular model family. The GAT did no better than hand-crafted features, consistent with large-sample comparisons in which deep and linear models perform comparably on FC data~\cite{schulz2020different,he2020deep}. Three practical implications follow. (i) Claims of $>80\%$ accuracy on median-split behavioral labels in moderate samples call for an explicit leakage audit (Table~\ref{tab:ml}, bottom). (ii) Finding a group difference and building a useful individual classifier are separate problems with very different data requirements~\cite{marek2022reproducible}. (iii) Graph-metric group differences should be reported together with a sensitivity analysis over graph construction; ours would have been overstated without one.
+
+\subsection{Limitations and Future Directions}
+\label{sec:limitations}
+
+(i) \emph{Family structure.} The HCP cohort contains siblings and twins, and without the Restricted family identifiers we could not run family-aware permutation~\cite{winkler2015multi} or keep relatives in the same CV fold. Relatedness reduces the effective sample size, so the group-level $p$-values, most importantly the $p=0.03$ modularity gap, are likely somewhat optimistic. For the classifiers, relatives split across folds can only inflate test accuracy, so the near-chance null results are conservative. (ii) \emph{Labels.} Replication with external labels such as fluid intelligence would strengthen generalization. (iii) \emph{Design.} The cross-sectional design cannot establish whether baseline modularity drives efficient performance or the reverse. (iv) \emph{Resolution.} Our 30-parcel, static-FC graphs are dense at the original threshold, and together with the a~priori partition they may miss signals that finer parcellations (Schaefer 400, Glasser MMP1.0) or dynamic connectivity~\cite{shine2016dynamics} could resolve.
+
+\subsection{Conclusion}
+
+We asked whether neural efficiency reflects task-time reorganization or a stable architecture. Under working-memory load, functional network organization is stable in both high- and low-efficiency individuals, which argues against compensatory-reorganization accounts. A group difference in baseline modularity appeared at one graph construction but proved construction-dependent and attributable to graph density, and neither this nor any other neural measure supported individual-level prediction once target leakage was removed. Stability, not a distinctive baseline, is what the data support; whether efficient brains hold a better-organized baseline remains to be tested with density-controlled, family-aware analyses in larger cohorts.
+
+\section*{Reproducibility Statement}
+
+Analysis code, configuration files, the list of the 200 HCP subject IDs, and the post-processed tables needed to reproduce every figure and table are available at \url{https://github.com/xiaoyanLi629/neural-efficiency-cognitive-load}. Preprocessed HCP data must be obtained from the Human Connectome Project under its Open Access Data Use Terms. All stochastic steps (CV splits, permutations, network initialization, Louvain seeds) use fixed seeds (\texttt{random\_state=42}).
+
+\section*{Acknowledgment}
+
+Data were provided by the Human Connectome Project, WU-Minn Consortium (Principal Investigators: David Van Essen and Kamil Ugurbil; 1U54MH091657) funded by the 16 NIH Institutes and Centers that support the NIH Blueprint for Neuroscience Research; and by the McDonnell Center for Systems Neuroscience at Washington University. Claude (Anthropic) was used to assist in writing and debugging analysis code and in editing the manuscript text; all analyses, results and text were checked by the authors, who take full responsibility for the content.
+
+\begin{thebibliography}{00}
+\bibitem{deary2010neuroscience} I. J. Deary, L. Penke, and W. Johnson, ``The neuroscience of human intelligence differences,'' \textit{Nature Reviews Neuroscience}, vol. 11, no. 3, pp. 201--211, 2010.
+\bibitem{haier1988cortical} R. J. Haier et al., ``Cortical glucose metabolic rate correlates of abstract reasoning and attention studied with positron emission tomography,'' \textit{Intelligence}, vol. 12, no. 2, pp. 199--217, 1988.
+\bibitem{neubauer2009intelligence} A. C. Neubauer and A. Fink, ``Intelligence and neural efficiency,'' \textit{Neuroscience \& Biobehavioral Reviews}, vol. 33, no. 7, pp. 1004--1023, 2009.
+\bibitem{rottschy2012modelling} C. Rottschy et al., ``Modelling neural correlates of working memory: A coordinate-based meta-analysis,'' \textit{NeuroImage}, vol. 60, no. 1, pp. 830--846, 2012.
+\bibitem{bassett2017network} D. S. Bassett and O. Sporns, ``Network neuroscience,'' \textit{Nature Neuroscience}, vol. 20, no. 3, pp. 353--364, 2017.
+\bibitem{bullmore2012economy} E. Bullmore and O. Sporns, ``The economy of brain network organization,'' \textit{Nature Reviews Neuroscience}, vol. 13, no. 5, pp. 336--349, 2012.
+\bibitem{sporns2016modular} O. Sporns and R. F. Betzel, ``Modular brain networks,'' \textit{Annual Review of Psychology}, vol. 67, pp. 613--640, 2016.
+\bibitem{shine2016dynamics} J. M. Shine et al., ``The dynamics of functional brain networks: Integrated network states during cognitive task performance,'' \textit{Neuron}, vol. 92, no. 2, pp. 544--554, 2016.
+\bibitem{schultz2016higher} D. H. Schultz and M. W. Cole, ``Higher intelligence is associated with less task-related brain network reconfiguration,'' \textit{Journal of Neuroscience}, vol. 36, no. 33, pp. 8551--8561, 2016.
+\bibitem{baddeley2012working} A. Baddeley, ``Working memory: Theories, models, and controversies,'' \textit{Annual Review of Psychology}, vol. 63, pp. 1--29, 2012.
+\bibitem{owen2005n} A. M. Owen et al., ``N-back working memory paradigm: A meta-analysis of normative functional neuroimaging studies,'' \textit{Human Brain Mapping}, vol. 25, no. 1, pp. 46--59, 2005.
+\bibitem{van2013wu} D. C. Van Essen et al., ``The WU-Minn Human Connectome Project: An overview,'' \textit{NeuroImage}, vol. 80, pp. 62--79, 2013.
+\bibitem{barch2013function} D. M. Barch et al., ``Function in the human connectome: Task-fMRI and individual differences in behavior,'' \textit{NeuroImage}, vol. 80, pp. 169--189, 2013.
+\bibitem{glasser2013minimal} M. F. Glasser et al., ``The minimal preprocessing pipelines for the Human Connectome Project,'' \textit{NeuroImage}, vol. 80, pp. 105--124, 2013.
+\bibitem{townsend2014methods} J. T. Townsend and F. G. Ashby, ``Methods of modeling capacity in simple processing systems,'' in \textit{Cognitive Theory}, vol.\ 3, N. J. Castellan and F. Restle, Eds. Hillsdale, NJ: Lawrence Erlbaum, 1978, pp.\ 199--239.
+\bibitem{schaefer2018local} A. Schaefer et al., ``Local-global parcellation of the human cerebral cortex from intrinsic functional connectivity MRI,'' \textit{Cerebral Cortex}, vol. 28, no. 9, pp. 3095--3114, 2018.
+\bibitem{friston1996movement} K. J. Friston et al., ``Movement-related effects in fMRI time-series,'' \textit{Magnetic Resonance in Medicine}, vol. 35, no. 3, pp. 346--355, 1996.
+\bibitem{friston1998event} K. J. Friston et al., ``Event-related fMRI: Characterizing differential responses,'' \textit{NeuroImage}, vol. 7, no. 1, pp. 30--40, 1998.
+\bibitem{rubinov2010complex} M. Rubinov and O. Sporns, ``Complex network measures of brain connectivity: Uses and interpretations,'' \textit{NeuroImage}, vol. 52, no. 3, pp. 1059--1069, 2010.
+\bibitem{latora2001efficient} V. Latora and M. Marchiori, ``Efficient behavior of small-world networks,'' \textit{Physical Review Letters}, vol. 87, no. 19, p. 198701, 2001.
+\bibitem{newman2006modularity} M. E. J. Newman, ``Modularity and community structure in networks,'' \textit{PNAS}, vol. 103, no. 23, pp. 8577--8582, 2006.
+\bibitem{benjamini1995controlling} Y. Benjamini and Y. Hochberg, ``Controlling the false discovery rate: A practical and powerful approach to multiple testing,'' \textit{Journal of the Royal Statistical Society B}, vol. 57, no. 1, pp. 289--300, 1995.
+\bibitem{velickovic2017graph} P. Veli\v{c}kovi\'c et al., ``Graph attention networks,'' in \textit{ICLR}, 2018.
+\bibitem{schulz2020different} M.-A. Schulz et al., ``Different scaling of linear models and deep learning in UKBiobank brain images versus machine-learning datasets,'' \textit{Nature Communications}, vol. 11, 4238, 2020.
+\bibitem{cole2014intrinsic} M. W. Cole, D. S. Bassett, J. D. Power, T. S. Braver, and S. E. Petersen, ``Intrinsic and task-evoked network architectures of the human brain,'' \textit{Neuron}, vol. 83, no. 1, pp. 238--251, 2014.
+\bibitem{cole2021functional} M. W. Cole, T. Ito, C. Cocuzza, and R. Sanchez-Romero, ``The functional relevance of task-state functional connectivity,'' \textit{Journal of Neuroscience}, vol. 41, no. 12, pp. 2684--2702, 2021.
+\bibitem{gratton2018functional} C. Gratton et al., ``Functional brain networks are dominated by stable group and individual factors, not cognitive or daily variation,'' \textit{Neuron}, vol. 98, no. 2, pp. 439--452, 2018.
+\bibitem{he2020deep} T. He et al., ``Deep neural networks and kernel regression achieve comparable accuracies for functional connectivity prediction of behavior and demographics,'' \textit{NeuroImage}, vol. 206, art.\ 116276, 2020.
+\bibitem{marek2022reproducible} S. Marek et al., ``Reproducible brain-wide association studies require thousands of individuals,'' \textit{Nature}, vol. 603, pp. 654--660, 2022.
+\bibitem{maccallum2002practice} R. C. MacCallum, S. Zhang, K. J. Preacher, and D. D. Rucker, ``On the practice of dichotomization of quantitative variables,'' \textit{Psychological Methods}, vol. 7, no. 1, pp. 19--40, 2002.
+\bibitem{winkler2015multi} A. M. Winkler, M. A. Webster, D. Vidaurre, T. E. Nichols, and S. M. Smith, ``Multi-level block permutation,'' \textit{NeuroImage}, vol. 123, pp. 253--268, 2015.
+\end{thebibliography}
+
+\end{document}

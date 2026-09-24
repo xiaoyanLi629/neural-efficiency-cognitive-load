@@ -79,3 +79,10 @@ PROJECT_STATUS.md
 *.tmp
 *.temp
 .cache/
+
+# Camera-ready: large derived FC matrices and submission tarball are not tracked
+camera_ready/fc30.npz
+IEEE_manuscript_camera_ready/*.tar.gz
+IEEE_manuscript_camera_ready/*.aux
+IEEE_manuscript_camera_ready/*.log
+IEEE_manuscript_camera_ready/*.out
