@@ -10,9 +10,9 @@
 [![Task](https://img.shields.io/badge/task-N--back%20fMRI-5dade2)](#data)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**Xiaoyan Li · Cuicui Jiang\* · Yujia Du · Jiaxuan Wei · Xingyue Liu · Jiaoping Chen**
+**Xiaoyan Li · Cuicui Jiang · Yujia Du · Jiaxuan Wei · Xingyue Liu · Jiaoping Chen\***
 
-\*Corresponding author: jiangcuicui@mail.imu.edu.cn
+\*Corresponding author: jchen@ubalt.edu
 
 </div>
 
@@ -164,6 +164,6 @@ Family structure (siblings and twins) could not be modeled without HCP Restricte
 
 Data were provided by the Human Connectome Project, WU-Minn Consortium (Principal Investigators: David Van Essen and Kamil Ugurbil; 1U54MH091657) funded by the 16 NIH Institutes and Centers that support the NIH Blueprint for Neuroscience Research; and by the McDonnell Center for Systems Neuroscience at Washington University.
 
-Corresponding author: Cuicui Jiang · jiangcuicui@mail.imu.edu.cn
+Corresponding author: Jiaoping Chen · jchen@ubalt.edu
 
 Code is released under the [MIT License](LICENSE).
