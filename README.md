@@ -8,8 +8,11 @@
 [![Data](https://img.shields.io/badge/data-HCP%20Young%20Adult%20(N%3D200)-c0392b)](https://www.humanconnectome.org/)
 [![Python](https://img.shields.io/badge/python-3.10-3776ab)](requirements.txt)
 [![Task](https://img.shields.io/badge/task-N--back%20fMRI-5dade2)](#data)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-Xiaoyan Li · Cuicui Jiang · Yujia Du · Jiaxuan Wei · Xingyue Liu · Jiaoping Chen
+**Xiaoyan Li · Cuicui Jiang\* · Yujia Du · Jiaxuan Wei · Xingyue Liu · Jiaoping Chen**
+
+\*Corresponding author: jiangcuicui@mail.imu.edu.cn
 
 </div>
 
@@ -160,3 +163,7 @@ Family structure (siblings and twins) could not be modeled without HCP Restricte
 ## Acknowledgment
 
 Data were provided by the Human Connectome Project, WU-Minn Consortium (Principal Investigators: David Van Essen and Kamil Ugurbil; 1U54MH091657) funded by the 16 NIH Institutes and Centers that support the NIH Blueprint for Neuroscience Research; and by the McDonnell Center for Systems Neuroscience at Washington University.
+
+Corresponding author: Cuicui Jiang · jiangcuicui@mail.imu.edu.cn
+
+Code is released under the [MIT License](LICENSE).
